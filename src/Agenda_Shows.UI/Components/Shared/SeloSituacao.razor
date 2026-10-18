@@ -1,0 +1,21 @@
+@* O selo de situação: "Ao vivo agora" (coral, o ponto pulsa — é estado real), "Começa em 40 min", "Hoje · 20:30",
+   "Sáb · 10:00", "Encerrado", "Cancelado". A régua é a Situacao, no serviço. *@
+@{
+    var s = Situacao.De(InicioUtc, FimUtc, Status, Agora);
+    var classe = s switch
+    {
+        SituacaoDoEvento.AoVivo => "um-selo-aovivo",
+        SituacaoDoEvento.Hoje => "um-selo-hoje",
+        SituacaoDoEvento.Encerrado => "um-selo-encerrado",
+        SituacaoDoEvento.Cancelado => "um-selo-cancelado",
+        _ => "",
+    };
+}
+<span class="um-selo @classe">@Situacao.Rotulo(InicioUtc, FimUtc, Status, Agora)</span>
+
+@code {
+    [Parameter] public DateTime InicioUtc { get; set; }
+    [Parameter] public DateTime FimUtc { get; set; }
+    [Parameter] public StatusDoEvento Status { get; set; }
+    [Parameter] public DateTime Agora { get; set; }
+}

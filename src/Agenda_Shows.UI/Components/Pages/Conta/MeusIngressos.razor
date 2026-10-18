@@ -1,0 +1,265 @@
+@page "/meus-ingressos"
+@attribute [Authorize]
+@* SSR estático. Os pedidos chegam do serviço (que reconfere quem pede) e são separados aqui pelo MESMO "agora":
+   aguardando pagamento, próximos, anteriores e cancelados. *@
+@inject IPedidos ServicoDePedidos
+@inject TimeProvider Relogio
+
+<PageTitle>Meus ingressos · UMURA</PageTitle>
+<HeadContent>
+    <meta name="robots" content="noindex" />
+</HeadContent>
+
+<div class="um-container">
+    <header class="um-pagina-cab">
+        <span class="um-eyebrow">Sua conta</span>
+        <h1>Meus ingressos</h1>
+        <p>Mostre o QR code na porta do evento. Funciona com a tela do celular mesmo.</p>
+    </header>
+</div>
+
+<div class="um-container mi">
+    @if (erro is not null)
+    {
+        <div class="um-alert um-alert-danger" role="alert"><p class="mi-sem-margem">@erro</p></div>
+    }
+    else if (total == 0)
+    {
+        <div class="um-empty">
+            <svg class="mi-vazio-icone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M3 8a2 2 0 0 0 0 4v4a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-4a2 2 0 0 1 0-4V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2z" /><path d="M14 4v16" stroke-dasharray="2 2" />
+            </svg>
+            <h2 class="mi-vazio-titulo">Você ainda não tem ingressos</h2>
+            <p>Quando você comprar ou reservar um ingresso, ele aparece aqui com o QR code.</p>
+            <a href="/eventos" class="um-btn um-btn-primary">Explorar eventos</a>
+        </div>
+    }
+    else
+    {
+        @if (aguardando.Count > 0)
+        {
+            <section class="um-section-tight" aria-labelledby="mi-aguardando">
+                <h2 id="mi-aguardando" class="mi-sec">Aguardando pagamento</h2>
+                <div class="mi-lista">
+                    @foreach (var p in aguardando)
+                    {
+                        <article class="um-card mi-pedido mi-pendente">
+                            <img class="mi-foto" src="@Foto.Card(p.EventoImagem)" alt="" width="112" height="63" loading="lazy" decoding="async" />
+                            <div class="mi-info">
+                                <span class="um-badge um-badge-warning">Aguardando pagamento</span>
+                                <h3 class="mi-titulo"><a href="/evento/@p.EventoSlug">@p.EventoTitulo</a></h3>
+                                <p class="mi-meta">@QuandoDoEvento.Rotulo(p.EventoInicioUtc, agora) · @p.LocalNome</p>
+                                <p class="mi-meta"><b class="um-tnum">@Dinheiro.Reais(p.TotalCentavos)</b> · expira às <span class="um-tnum">@BrazilTime.Format(p.ExpiraEmUtc, "HH:mm")</span></p>
+                            </div>
+                            <a href="/pedido/@p.Codigo" class="um-btn um-btn-primary mi-pagar">Pagar agora</a>
+                        </article>
+                    }
+                </div>
+            </section>
+        }
+
+        @if (proximos.Count > 0)
+        {
+            <section class="um-section-tight" aria-labelledby="mi-proximos">
+                <h2 id="mi-proximos" class="mi-sec">Próximos</h2>
+                <div class="mi-lista" data-um-motion="reveal-group">
+                    @foreach (var p in proximos)
+                    {
+                        <article class="um-card mi-pedido">
+                            <div class="mi-cab">
+                                <img class="mi-foto" src="@Foto.Card(p.EventoImagem)" alt="" width="112" height="63" loading="lazy" decoding="async" />
+                                <div class="mi-info">
+                                    <SeloSituacao InicioUtc="p.EventoInicioUtc" FimUtc="p.EventoFimUtc" Status="p.EventoStatus" Agora="agora" />
+                                    <h3 class="mi-titulo"><a href="/evento/@p.EventoSlug">@p.EventoTitulo</a></h3>
+                                    <p class="mi-meta">@QuandoDoEvento.Rotulo(p.EventoInicioUtc, agora) · @p.LocalNome</p>
+                                    <p class="mi-meta">Pedido <code class="um-mono">@p.Codigo</code> · @Plural(p.Ingressos.Count, "ingresso", "ingressos")</p>
+                                </div>
+                            </div>
+
+                            @if (p.EventoStatus == StatusDoEvento.Cancelado)
+                            {
+                                <div class="um-alert um-alert-danger" role="note">
+                                    <p class="mi-sem-margem"><b>Evento cancelado pelo organizador.</b> Seus ingressos ficam aqui como comprovante.</p>
+                                </div>
+                            }
+
+                            @if (p.Ingressos.Count == 0)
+                            {
+                                <p class="um-muted mi-sem-margem">Os ingressos deste pedido ainda estão sendo emitidos. Recarregue em instantes.</p>
+                            }
+                            else
+                            {
+                                <ul class="mi-tickets">
+                                    @foreach (var i in p.Ingressos)
+                                    {
+                                        <li class="um-ticket">
+                                            <QrCode Texto="@($"UMURA|{i.Codigo}")" Rotulo="@($"QR code do ingresso {i.Codigo}")" />
+                                            <div class="mi-ticket-info">
+                                                <span class="mi-tipo">@i.NomeDoTipo</span>
+                                                <code class="um-mono mi-codigo">@i.Codigo</code>
+                                                @if (i.UsadoEmUtc is { } usado)
+                                                {
+                                                    <span class="um-badge um-badge-info">✓ @Usado(usado)</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="um-badge um-badge-success">✓ Válido</span>
+                                                }
+                                            </div>
+                                        </li>
+                                    }
+                                </ul>
+                            }
+                        </article>
+                    }
+                </div>
+            </section>
+        }
+
+        @if (anteriores.Count > 0)
+        {
+            <section class="um-section-tight" aria-labelledby="mi-anteriores">
+                <h2 id="mi-anteriores" class="mi-sec">Anteriores</h2>
+                <div class="mi-lista">
+                    @foreach (var p in anteriores)
+                    {
+                        <article class="um-card mi-pedido mi-passado">
+                            <div class="mi-cab">
+                                <img class="mi-foto" src="@Foto.Card(p.EventoImagem)" alt="" width="112" height="63" loading="lazy" decoding="async" />
+                                <div class="mi-info">
+                                    <SeloSituacao InicioUtc="p.EventoInicioUtc" FimUtc="p.EventoFimUtc" Status="p.EventoStatus" Agora="agora" />
+                                    <h3 class="mi-titulo"><a href="/evento/@p.EventoSlug">@p.EventoTitulo</a></h3>
+                                    <p class="mi-meta">@BrazilTime.Format(p.EventoInicioUtc, "dd/MM/yyyy") · @p.LocalNome</p>
+                                </div>
+                            </div>
+                            @if (p.Ingressos.Count > 0)
+                            {
+                                <ul class="mi-codigos">
+                                    @foreach (var i in p.Ingressos)
+                                    {
+                                        <li>
+                                            <span class="mi-tipo">@i.NomeDoTipo</span>
+                                            <code class="um-mono">@i.Codigo</code>
+                                            <span class="um-muted">@(i.UsadoEmUtc is { } usado ? Usado(usado) : "Não usado")</span>
+                                        </li>
+                                    }
+                                </ul>
+                            }
+                        </article>
+                    }
+                </div>
+            </section>
+        }
+
+        @if (cancelados.Count > 0)
+        {
+            <section class="um-section-tight" aria-label="Cancelados">
+                <details class="um-card mi-cancelados">
+                    <summary><span class="mi-sec">Cancelados (@cancelados.Count)</span></summary>
+                    <ul class="mi-codigos">
+                        @foreach (var p in cancelados)
+                        {
+                            <li>
+                                <span><a href="/evento/@p.EventoSlug">@p.EventoTitulo</a></span>
+                                <span class="um-muted um-tnum">@Dinheiro.Reais(p.TotalCentavos) · @BrazilTime.Format(p.CriadoEmUtc, "dd/MM HH:mm")</span>
+                                <span class="um-badge">@(p.Status == StatusDoPedido.Cancelado ? "Cancelado" : "Prazo encerrado")</span>
+                            </li>
+                        }
+                    </ul>
+                </details>
+            </section>
+        }
+    }
+</div>
+
+<style>
+    .mi { padding-bottom: var(--um-sec-pad); max-width: 860px; }
+    .mi-sem-margem { margin: 0; }
+    .mi-vazio-icone { width: 48px; height: 48px; color: var(--um-brand); }
+    .mi-vazio-titulo { margin: 0.25rem 0 0; font-size: 1.35rem; }
+    .mi-sec { margin: 0 0 0.75rem; font-size: 1.2rem; }
+    .mi-lista { display: grid; gap: 1rem; }
+    .mi-pedido { display: grid; gap: 1rem; }
+    .mi-cab { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 0.9rem; align-items: start; }
+    .mi-pendente { grid-template-columns: 112px minmax(0, 1fr); align-items: start; }
+    .mi-pendente .mi-pagar { grid-column: 1 / -1; }
+    @@media (min-width: 641px) {
+        .mi-pendente { grid-template-columns: 112px minmax(0, 1fr) auto; align-items: center; }
+        .mi-pendente .mi-pagar { grid-column: auto; }
+    }
+    .mi-foto { width: 112px; height: 63px; object-fit: cover; border-radius: var(--um-radius-sm); background: var(--um-surface-2); display: block; }
+    .mi-info { display: grid; gap: 0.25rem; justify-items: start; min-width: 0; }
+    .mi-info .um-selo { box-shadow: none; }
+    .mi-titulo { margin: 0.15rem 0 0; font-size: 1.05rem; line-height: 1.25; overflow-wrap: anywhere; }
+    .mi-titulo a { color: var(--um-brand); text-decoration: none; }
+    .mi-titulo a:hover { text-decoration: underline; }
+    .mi-meta { margin: 0; font-size: 0.875rem; color: var(--um-ink-soft); }
+    .mi-tickets { display: grid; gap: 0.75rem; margin: 0; padding: 0; list-style: none; }
+    @@media (min-width: 900px) { .mi-tickets { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    .mi-ticket-info { display: grid; gap: 0.35rem; justify-items: start; min-width: 0; }
+    .mi-tipo { font-size: 0.75rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--um-ink-muted); }
+    .mi-codigo { font-size: 1.1rem; font-weight: 700; letter-spacing: 0.12em; color: var(--um-ink); overflow-wrap: anywhere; }
+    .mi-codigos { display: grid; gap: 0.5rem; margin: 0; padding: 0; list-style: none; }
+    .mi-codigos li { display: flex; flex-wrap: wrap; gap: 0.35rem 0.75rem; align-items: center; padding-block: 0.5rem; border-bottom: 1px solid var(--um-border-soft); font-size: 0.9rem; }
+    .mi-codigos li:last-child { border-bottom: 0; }
+    .mi-passado .mi-foto { filter: grayscale(0.5); }
+    .mi-cancelados > summary { display: flex; align-items: center; min-height: var(--um-tap); cursor: pointer; }
+    .mi-cancelados > summary .mi-sec { margin: 0; font-family: var(--um-display); font-weight: 700; color: var(--um-brand); }
+    .mi-cancelados[open] > summary { margin-bottom: 0.5rem; }
+    @@media (max-width: 480px) {
+        .mi-cab, .mi-pendente { grid-template-columns: 88px minmax(0, 1fr); }
+        .mi-foto { width: 88px; height: 50px; }
+        .um-ticket { grid-template-columns: 1fr; justify-items: center; text-align: center; }
+        .mi-ticket-info { justify-items: center; }
+    }
+</style>
+
+@code {
+    [CascadingParameter] private Task<AuthenticationState>? Estado { get; set; }
+
+    private DateTime agora;
+    private int total;
+    private string? erro;
+    private List<PedidoDto> aguardando = [];
+    private List<PedidoDto> proximos = [];
+    private List<PedidoDto> anteriores = [];
+    private List<PedidoDto> cancelados = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        agora = Relogio.GetUtcNow().UtcDateTime;
+        var user = Estado is null ? new ClaimsPrincipal(new ClaimsIdentity()) : (await Estado).User;
+
+        IReadOnlyList<PedidoDto> pedidos;
+        try
+        {
+            pedidos = await ServicoDePedidos.MeusAsync(user);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            erro = ex.Message;
+            return;
+        }
+
+        total = pedidos.Count;
+
+        // Aguardando só enquanto ainda dá para pagar: vencido sem o job ter passado já é "prazo encerrado".
+        aguardando = pedidos.Where(p => p.Status == StatusDoPedido.AguardandoPagamento && p.ExpiraEmUtc > agora)
+            .OrderBy(p => p.ExpiraEmUtc).ToList();
+        proximos = pedidos.Where(p => p.Status == StatusDoPedido.Pago && p.EventoFimUtc > agora)
+            .OrderBy(p => p.EventoInicioUtc).ToList();
+        anteriores = pedidos.Where(p => p.Status == StatusDoPedido.Pago && p.EventoFimUtc <= agora)
+            .OrderByDescending(p => p.EventoInicioUtc).ToList();
+        cancelados = pedidos.Where(p => p.Status == StatusDoPedido.Cancelado || p.Status == StatusDoPedido.Expirado
+                                        || (p.Status == StatusDoPedido.AguardandoPagamento && p.ExpiraEmUtc <= agora))
+            .OrderByDescending(p => p.CriadoEmUtc).ToList();
+    }
+
+    /// <summary>"Usado às 21:40" no dia de hoje; "Usado em 12/10 às 21:40" em outro dia.</summary>
+    private string Usado(DateTime usadoUtc) =>
+        BrazilTime.DataEmBrasilia(usadoUtc) == BrazilTime.DataEmBrasilia(agora)
+            ? $"Usado às {BrazilTime.Format(usadoUtc, "HH:mm")}"
+            : $"Usado em {BrazilTime.Format(usadoUtc, "dd/MM")} às {BrazilTime.Format(usadoUtc, "HH:mm")}";
+
+    private static string Plural(int n, string um, string varios) => n == 1 ? $"1 {um}" : $"{n} {varios}";
+}

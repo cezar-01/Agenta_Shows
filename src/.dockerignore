@@ -1,0 +1,16 @@
+# Build outputs — o publish acontece DENTRO do container.
+**/bin/
+**/obj/
+
+# Git / IDE / locais
+.git/
+.gitignore
+.vs/
+.vscode/
+*.user
+
+# Testes não entram na imagem de produção (o csproj nem é restaurado).
+Agenda_Shows.Tests/
+
+# Infra local (o banco de teste mora em docker/ na raiz do repo, fora deste contexto)
+docker/

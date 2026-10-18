@@ -1,0 +1,174 @@
+@implements IDisposable
+@using Microsoft.Extensions.Logging
+@inject IFavoritos FavSvc
+@inject IJSRuntime JS
+@inject NavigationManager Nav
+@inject ILogger<AcoesDoEvento> Log
+
+@* Favoritar e compartilhar (ilha interativa da página do evento). Sem login, o coração é um link para /entrar que
+   volta para cá. Compartilhar usa o navigator.share no celular e, onde não há, copia o link (share.js). *@
+
+<div class="um-acoes-evento">
+    <div class="um-row">
+        @if (logado)
+        {
+            <button type="button" class="um-icon-btn um-acao-fav" aria-pressed="@(favorito ? "true" : "false")"
+                    aria-label="Salvar nos favoritos" title="@(favorito ? "Nos seus favoritos" : "Salvar nos favoritos")"
+                    disabled="@ocupado" @onclick="AlternarAsync">
+                <svg viewBox="0 0 24 24" fill="@(favorito ? "currentColor" : "none")" stroke="currentColor" stroke-width="2"
+                     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M12 20.5s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.6a4.3 4.3 0 0 1 7.5 2.7c0 5.6-7.5 10.2-7.5 10.2z" />
+                </svg>
+            </button>
+        }
+        else
+        {
+            <a href="@EntrarUrl" class="um-icon-btn um-acao-fav" aria-label="Entre para salvar nos favoritos" title="Entre para salvar nos favoritos">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M12 20.5s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.6a4.3 4.3 0 0 1 7.5 2.7c0 5.6-7.5 10.2-7.5 10.2z" />
+                </svg>
+            </a>
+        }
+
+        <button type="button" class="um-btn um-btn-outline um-acao-share" @onclick="CompartilharAsync" disabled="@compartilhando">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" />
+                <path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4" />
+            </svg>
+            <span>@(copiado ? "Link copiado ✓" : "Compartilhar")</span>
+        </button>
+    </div>
+
+    <p class="um-visually-hidden" role="status">@aviso</p>
+
+    @if (linkManual is not null)
+    {
+        <p class="um-hint um-acao-link">Não consegui copiar sozinho. O link é: <span class="um-mono">@linkManual</span></p>
+    }
+
+    @if (erro is not null)
+    {
+        <div class="um-alert um-alert-danger um-acao-erro" role="alert">@erro</div>
+    }
+</div>
+
+<style>
+    .um-acoes-evento { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--um-border-soft); }
+    .um-acao-fav { border-color: var(--um-border); }
+    .um-acao-share svg { width: 20px; height: 20px; }
+    .um-acao-link { margin: 0.6rem 0 0; overflow-wrap: anywhere; }
+    .um-acao-erro { margin-top: 0.75rem; }
+</style>
+
+@code {
+    [Parameter, EditorRequired] public int EventoId { get; set; }
+    [Parameter] public string Titulo { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public string Slug { get; set; } = string.Empty;
+
+    /// <summary>O estado inicial (lido pela página no servidor). Depois do primeiro clique, quem manda é o serviço.</summary>
+    [Parameter] public bool Favorito { get; set; }
+
+    [CascadingParameter] private Task<AuthenticationState>? Estado { get; set; }
+
+    private readonly CancellationTokenSource vida = new();
+    private bool favorito;
+    private bool logado;
+    private bool ocupado;
+    private bool compartilhando;
+    private bool copiado;
+    private string? aviso;
+    private string? erro;
+    private string? linkManual;
+
+    protected override async Task OnInitializedAsync()
+    {
+        favorito = Favorito;
+        var user = Estado is null ? null : (await Estado).User;
+        logado = Autorizacao.UsuarioId(user) is not null;
+    }
+
+    private string EntrarUrl => "/entrar?returnUrl=" + Uri.EscapeDataString("/evento/" + Slug);
+
+    private string UrlDoEvento => Nav.BaseUri + "evento/" + Uri.EscapeDataString(Slug);
+
+    private async Task AlternarAsync()
+    {
+        if (ocupado) return;
+        ocupado = true;
+        erro = null;
+        try
+        {
+            var user = Estado is null ? null : (await Estado).User;
+            if (user is null) throw new UnauthorizedAccessException(Autorizacao.MensagemAutenticacao);
+            favorito = await FavSvc.AlternarAsync(user, EventoId, vida.Token);
+            aviso = favorito ? "Salvo nos seus favoritos." : "Tirado dos favoritos.";
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            erro = ex.Message;
+        }
+        catch (OperationCanceledException)
+        {
+            // A página saiu no meio: nada a mostrar.
+        }
+        catch (Exception ex)
+        {
+            Log.LogWarning("Favorito não alternado ({Erro}).", ex.GetType().Name);
+            erro = "Não consegui salvar agora. Tente de novo em instantes.";
+        }
+        finally
+        {
+            ocupado = false;
+        }
+    }
+
+    private async Task CompartilharAsync()
+    {
+        if (compartilhando) return;
+        compartilhando = true;
+        erro = null;
+        linkManual = null;
+        var url = UrlDoEvento;
+        try
+        {
+            var r = await JS.InvokeAsync<string>("umShare.share", Titulo, $"{Titulo} na UMURA", url);
+            if (r == "copied")
+            {
+                copiado = true;
+                aviso = "Link copiado.";
+                compartilhando = false;
+                StateHasChanged();
+                await Task.Delay(TimeSpan.FromSeconds(2), vida.Token);
+                copiado = false;
+                aviso = null;
+            }
+            else if (r == "failed")
+            {
+                linkManual = url;
+            }
+        }
+        catch (JSDisconnectedException)
+        {
+            // O circuito caiu (aba fechada, rede): não há para quem responder.
+        }
+        catch (OperationCanceledException)
+        {
+            // Timeout da folha de compartilhar ou a página saiu durante os 2 s do "copiado".
+        }
+        catch (JSException)
+        {
+            // share.js ausente ou o navegador recusou: o link vai por escrito.
+            linkManual = url;
+        }
+        finally
+        {
+            compartilhando = false;
+        }
+    }
+
+    public void Dispose()
+    {
+        vida.Cancel();
+        vida.Dispose();
+    }
+}

@@ -1,0 +1,32 @@
+# MySQL 8 da UMURA para desenvolvimento, em 127.0.0.1:3307 (só a própria máquina alcança).
+# As senhas NÃO moram aqui: vêm do docker/mysql/.env (fora do git; modelo em .env.example).
+# O app entra com o usuário MYSQL_USER, que só enxerga o banco MYSQL_DATABASE — nunca como root.
+name: umura-mysql
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: umura-mysql
+    restart: unless-stopped
+    # utf8mb4 explícito (acento e emoji em nome de evento); a collation é a padrão do MySQL 8.
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_0900_ai_ci
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?crie o docker/mysql/.env a partir do .env.example}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-umura}
+      MYSQL_USER: ${MYSQL_USER:-umura}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?crie o docker/mysql/.env a partir do .env.example}
+    ports:
+      - "127.0.0.1:3307:3306"
+    volumes:
+      - umura-mysql-data:/var/lib/mysql
+    healthcheck:
+      # Pinga por TCP: durante a inicialização o servidor temporário só atende por
+      # socket, então o healthcheck só fica verde quando o banco está de fato no ar.
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 20s
+
+volumes:
+  umura-mysql-data:

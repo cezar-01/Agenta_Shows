@@ -1,0 +1,203 @@
+@page "/mapa"
+@inject ICatalogo Catalogo
+@inject TimeProvider Relogio
+@inject ILogger<Mapa> Log
+
+@* O mapa em tela cheia com os eventos dos próximos 7 dias. SSR estático: os chips de nicho são links (?nicho=slug), e
+   quem desenha o mapa é o js/mapa-eventos.js — ele lê os pinos de /api/mapa/eventos (a lista NÃO vai pelo HTML nem
+   pelo estado do circuito). Logo abaixo, os mesmos eventos em lista: para quem não usa mapa, para o leitor de tela e
+   para o Google. O nó [data-mapa-msg] nasce VAZIO — é nele que o módulo escreve os avisos (GPS, falha, sem eventos). *@
+
+<PageTitle>@titulo</PageTitle>
+<HeadContent>
+    <meta name="description" content="@descricao" />
+</HeadContent>
+
+<div class="um-mapa-pagina">
+    <h1 class="um-visually-hidden">@tituloH1</h1>
+
+    <div class="um-mapa" id="um-mapa" role="region" data-mapa-eventos="@urlDosPinos"
+         aria-label="Mapa dos eventos dos próximos 7 dias"></div>
+    <p class="mapa-msg" data-mapa-msg role="status"></p>
+
+    <nav class="um-mapa-filtros mapa-filtros" aria-label="Filtrar o mapa por nicho">
+        <div class="um-chip-row">
+            <a href="/mapa" class="um-chip @(ativo is null ? "is-selected" : null)" aria-current="@(ativo is null ? "page" : null)">Todos</a>
+            @foreach (var n in nichos)
+            {
+                var eh = ativo?.Slug == n.Slug;
+                <a href="@($"/mapa?nicho={Uri.EscapeDataString(n.Slug)}")" class="um-chip @(eh ? "is-selected" : null)"
+                   aria-current="@(eh ? "page" : null)">@n.Nome</a>
+            }
+        </div>
+    </nav>
+
+    <a href="@($"{caminho}#lista-do-mapa")" class="um-btn um-btn-outline mapa-ver-lista">
+        Ver em lista<span class="mapa-ver-lista-n"> (@eventos.Count)</span>
+    </a>
+    <button type="button" class="um-btn um-btn-primary um-mapa-gps" id="um-mapa-gps">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="3.5" /><path d="M12 2v3M12 19v3M2 12h3M19 12h3" /><circle cx="12" cy="12" r="7.5" />
+        </svg>
+        Perto de mim
+    </button>
+</div>
+
+<section class="um-section" id="lista-do-mapa" aria-labelledby="lista-do-mapa-titulo">
+    <div class="um-container">
+        <div class="um-sec-head">
+            <span class="um-eyebrow">Mapa + lista</span>
+            <h2 class="um-sec-title" id="lista-do-mapa-titulo">@tituloDaLista</h2>
+            <p class="um-sec-sub">Os mesmos eventos do mapa, do mais cedo para o mais tarde — para quem prefere ler a arrastar o mapa.</p>
+        </div>
+
+        @if (falhou)
+        {
+            <div class="um-alert um-alert-warning" role="alert">
+                <div><b>A lista não carregou agora.</b> Tente de novo em instantes — ou veja a <a href="/eventos">agenda completa</a>.</div>
+            </div>
+        }
+        else if (eventos.Count == 0)
+        {
+            <div class="um-card um-empty">
+                <h3>@(ativo is null ? "Nada no mapa nos próximos 7 dias" : $"Nada de {ativo.Nome} nos próximos 7 dias")</h3>
+                <p>Os organizadores publicam o tempo todo. Enquanto isso, dá uma olhada na agenda inteira.</p>
+                <div class="um-row mapa-vazio-acoes">
+                    @if (ativo is not null)
+                    {
+                        <a href="/mapa" class="um-btn um-btn-primary">Ver todos os nichos</a>
+                    }
+                    <a href="/eventos" class="um-btn um-btn-outline">Ver a agenda</a>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="um-grid" data-um-motion="reveal-group">
+                @foreach (var e in eventos)
+                {
+                    <EventoCardView Evento="e" Agora="agora" />
+                }
+            </div>
+        }
+    </div>
+</section>
+
+@code {
+    /// <summary>O nicho do filtro (<c>/mapa?nicho=shows</c>). Slug que não existe vale como "Todos".</summary>
+    [SupplyParameterFromQuery(Name = "nicho")] public string? Nicho { get; set; }
+
+    private IReadOnlyList<CategoriaDto> nichos = [];
+    private IReadOnlyList<EventoCard> eventos = [];
+    private CategoriaDto? ativo;
+    private DateTime agora;
+    private bool falhou;
+
+    private string urlDosPinos = "/api/mapa/eventos";
+    private string caminho = "/mapa";
+    private string titulo = "Mapa · UMURA";
+    private string tituloH1 = "Mapa dos eventos de Curitiba";
+    private string tituloDaLista = "Todos os eventos dos próximos 7 dias";
+    private string descricao = "Os eventos culturais de Curitiba dos próximos 7 dias no mapa: shows, festas, teatro, feiras e mais — perto de você.";
+
+    protected override async Task OnInitializedAsync()
+    {
+        agora = Relogio.GetUtcNow().UtcDateTime;
+        try
+        {
+            nichos = await Catalogo.NichosAsync();
+            var slug = Nicho?.Trim().ToLowerInvariant();
+            ativo = string.IsNullOrEmpty(slug) ? null : nichos.FirstOrDefault(n => n.Slug == slug);
+            eventos = await Catalogo.MapaAsync(ativo?.Slug);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // O mapa ainda tenta pela API; a lista avisa e aponta para a agenda.
+            Log.LogError(ex, "Falha ao montar a lista do mapa.");
+            falhou = true;
+        }
+
+        if (ativo is not null)
+        {
+            var slugUrl = Uri.EscapeDataString(ativo.Slug);
+            urlDosPinos = $"/api/mapa/eventos?nicho={slugUrl}";
+            caminho = $"/mapa?nicho={slugUrl}";
+            titulo = $"Mapa de {ativo.Nome} · UMURA";
+            tituloH1 = $"Mapa dos eventos de Curitiba: {ativo.Nome}";
+            tituloDaLista = $"{ativo.Nome} nos próximos 7 dias";
+            descricao = $"{ativo.Nome} em Curitiba nos próximos 7 dias, no mapa: veja o que rola perto de você.";
+        }
+    }
+}
+
+<style>
+    /* O mapa deixa uma faixa da lista à mostra (no celular o dedo arrasta o mapa — a faixa é por onde a página rola).
+       O mapa é um contexto de empilhamento próprio: pinos e popups do Leaflet ficam por baixo dos chips e dos botões. */
+    .um-mapa-pagina .um-mapa {
+        position: relative;
+        z-index: 0;
+        height: calc(100dvh - var(--um-header) - var(--um-bottomnav) - 3.5rem);
+    }
+    @@media (min-width: 1025px) {
+        .um-mapa-pagina .um-mapa { height: calc(100dvh - var(--um-header) - 3.5rem); }
+    }
+
+    .mapa-filtros .um-chip { text-decoration: none; }
+
+    /* Os controles do Leaflet descem para baixo dos chips e ganham o alvo de 44px. */
+    .um-mapa-pagina .leaflet-top { top: 4.25rem; }
+    .um-mapa-pagina .leaflet-bar { border: 1px solid var(--um-border); border-radius: var(--um-radius-sm); box-shadow: var(--um-shadow); overflow: hidden; }
+    .um-mapa-pagina .leaflet-bar a {
+        width: var(--um-tap);
+        height: var(--um-tap);
+        line-height: var(--um-tap);
+        font-family: var(--um-font);
+        font-size: 1.25rem;
+        background: var(--um-surface-3);
+        color: var(--um-ink);
+        border-bottom-color: var(--um-border-soft);
+    }
+    .um-mapa-pagina .leaflet-bar a:hover,
+    .um-mapa-pagina .leaflet-bar a:focus-visible { background: var(--um-surface-2); color: var(--um-ink); }
+    .um-mapa-pagina .leaflet-bar a.leaflet-disabled { background: var(--um-surface-2); color: var(--um-ink-dim); cursor: default; }
+
+    /* "Você está aqui": o ponto do GPS (o SVG do Leaflet lê fill/stroke do CSS por cima dos atributos). */
+    .um-mapa-voce { fill: var(--um-info); stroke: var(--um-surface-3); stroke-width: 3; fill-opacity: 1; }
+    .um-mapa-voce-rotulo { font-family: var(--um-font); font-weight: 600; color: var(--um-grey); }
+
+    /* Os avisos do mapa. A região viva existe sempre (o leitor de tela anuncia o que entra); vazia, não ocupa nada. */
+    .mapa-msg {
+        position: absolute;
+        z-index: 500;
+        left: var(--um-gutter);
+        right: var(--um-gutter);
+        bottom: 4.75rem;
+        max-width: 26rem;
+        margin: 0 auto;
+        padding: 0.7rem 1rem;
+        border-left: 3px solid var(--um-info);
+        border-radius: var(--um-radius);
+        background: var(--um-surface-3);
+        color: var(--um-ink);
+        box-shadow: var(--um-shadow);
+        font-size: 0.9375rem;
+    }
+    .mapa-msg:empty { padding: 0; border: 0; box-shadow: none; background: none; }
+
+    .mapa-ver-lista {
+        position: absolute;
+        z-index: 500;
+        left: var(--um-gutter);
+        bottom: 1.25rem;
+        background: var(--um-surface-3);
+        box-shadow: var(--um-shadow-lg);
+    }
+    .mapa-ver-lista:hover:not(:disabled) { background: var(--um-surface-3); }
+    .um-mapa-gps svg { width: 20px; height: 20px; flex: none; }
+
+    .mapa-vazio-acoes { justify-content: center; }
+
+    @@media (max-width: 380px) {
+        .mapa-ver-lista-n { display: none; }
+    }
+</style>

@@ -1,0 +1,18 @@
+@* O símbolo da UMURA (PDF p.3): a lente com os rastros de movimento e os cantos de enquadramento — desenhado em SVG
+   com currentColor, então a cor vem de quem usa (Deep Green no claro, Off White no escuro). É uma aproximação até o
+   Henrich mandar o SVG oficial; o PDF diz que as proporções nunca se alteram, então ninguém estica este desenho. *@
+<svg class="@Classe" viewBox="0 0 64 64" role="@(Rotulo is null ? null : "img")" aria-label="@Rotulo"
+     aria-hidden="@(Rotulo is null ? "true" : null)" focusable="false" fill="none" stroke="currentColor">
+    <path d="M14 6h8l-8 8z" fill="currentColor" stroke="none" />
+    <path d="M58 6h-8l8 8z" fill="currentColor" stroke="none" />
+    <path d="M58 58h-8l8-8z" fill="currentColor" stroke="none" />
+    <circle cx="36" cy="30" r="13" stroke-width="7" />
+    <path d="M22 40 9 53M26 45 15 56M31 49 23 57" stroke-width="5" stroke-linecap="round" />
+</svg>
+
+@code {
+    /// <summary>Com rótulo vira imagem para o leitor de tela; sem, é decoração (o texto ao lado já diz "UMURA").</summary>
+    [Parameter] public string? Rotulo { get; set; }
+
+    [Parameter] public string Classe { get; set; } = "um-logo-mark";
+}

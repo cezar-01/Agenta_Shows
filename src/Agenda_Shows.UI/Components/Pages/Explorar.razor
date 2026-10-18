@@ -1,0 +1,256 @@
+@page "/eventos"
+@using System.Globalization
+@using Microsoft.Extensions.Logging
+@inject ICatalogo Catalogo
+@inject TimeProvider Relogio
+@inject ILogger<Explorar> Log
+
+@* A agenda completa com filtros. SSR estático e tudo por GET: o filtro vira URL (dá para compartilhar e voltar), funciona
+   sem JS e o Google indexa. Os chips de "quando" são links que preservam os outros filtros. *@
+
+<PageTitle>@titulo</PageTitle>
+
+<header class="um-pagina-cab">
+    <div class="um-container">
+        <span class="um-eyebrow">Explorar</span>
+        <h1>Agenda de Curitiba</h1>
+        <p>Busque pelo nome, lugar ou bairro — e filtre por dia, nicho ou preço.</p>
+    </div>
+</header>
+
+<div class="um-container um-explorar">
+    <form method="get" action="/eventos" role="search" class="um-explorar-form">
+        <label for="explorar-q" class="um-visually-hidden">Buscar eventos</label>
+        <div class="um-busca">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" />
+            </svg>
+            <input id="explorar-q" type="search" name="q" value="@texto" placeholder="Busque show, festa, bairro…"
+                   maxlength="80" autocomplete="off" enterkeyhint="search" />
+            <button type="submit" class="um-btn um-btn-primary">Buscar</button>
+        </div>
+
+        @if (quandoChave is not null)
+        {
+            <input type="hidden" name="quando" value="@quandoChave" />
+        }
+
+        <div class="um-explorar-filtros">
+            <div class="um-field">
+                <label for="explorar-nicho" class="um-label">Nicho</label>
+                <select id="explorar-nicho" name="nicho" class="um-select">
+                    <option value="" selected="@(nicho is null)">Todos os nichos</option>
+                    @foreach (var n in nichos)
+                    {
+                        <option value="@n.Slug" selected="@(n.Slug == nicho)">@n.Nome</option>
+                    }
+                </select>
+            </div>
+            <label class="um-check um-explorar-gratis">
+                <input type="checkbox" name="gratis" value="true" checked="@gratis" />
+                <span>Só os grátis</span>
+            </label>
+            <button type="submit" class="um-btn um-btn-outline">Aplicar filtros</button>
+        </div>
+    </form>
+
+    <nav class="um-chip-row um-explorar-quando" aria-label="Quando">
+        @foreach (var op in OpcoesQuando)
+        {
+            var ativo = op.Chave == quandoChave;
+            <a href="@Montar(texto, op.Chave, nicho, gratis, 1)" class="um-chip @(ativo ? "is-selected" : "")"
+               aria-current="@(ativo ? "true" : null)">
+                @if (ativo)
+                {
+                    <span aria-hidden="true">✓</span>
+                }
+                @op.Rotulo
+            </a>
+        }
+    </nav>
+
+    @if (falhou)
+    {
+        <div class="um-alert um-alert-danger um-explorar-aviso" role="alert">
+            <div>
+                <b>Não consegui carregar os eventos agora</b>
+                Pode ser a conexão ou o nosso servidor. Tente de novo em instantes.
+            </div>
+        </div>
+    }
+    else if (resultado is { } r)
+    {
+        <p class="um-explorar-total um-tnum">
+            @TotalTexto(r.Total)@(texto is null ? "" : $" para “{texto}”")
+        </p>
+
+        @if (r.Itens.Count == 0)
+        {
+            @if (r.Total > 0)
+            {
+                <div class="um-empty">
+                    <h2>Acabou a lista por aqui</h2>
+                    <p>Essa página já passou do fim dos resultados.</p>
+                    <a href="@Montar(texto, quandoChave, nicho, gratis, 1)" class="um-btn um-btn-primary">Voltar ao início</a>
+                </div>
+            }
+            else if (SemFiltros)
+            {
+                <div class="um-empty">
+                    <h2>Ainda não tem evento na agenda</h2>
+                    <p>Quando alguém publicar, aparece aqui. Organiza algo? Divulgue de graça.</p>
+                    <a href="/criar-conta?organizador=1" class="um-btn um-btn-primary">Divulgar meu evento</a>
+                </div>
+            }
+            else
+            {
+                <div class="um-empty">
+                    <h2>Nada com esses filtros</h2>
+                    <p>Tente outro dia, outro nicho ou uma busca mais curta.</p>
+                    <a href="/eventos" class="um-btn um-btn-primary">Limpar filtros</a>
+                </div>
+            }
+        }
+        else
+        {
+            <div class="um-grid" role="list" data-um-motion="reveal-group">
+                @foreach (var e in r.Itens)
+                {
+                    <div role="listitem"><EventoCardView Evento="e" Agora="agora" /></div>
+                }
+            </div>
+
+            <div class="um-explorar-pag">
+                <p class="um-hint um-tnum">Mostrando @De(r)–@Ate(r) de @r.Total</p>
+                <div class="um-row">
+                    @if (r.TemMais)
+                    {
+                        <a href="@Montar(texto, quandoChave, nicho, gratis, pagina + 1)" class="um-btn um-btn-outline">Carregar mais</a>
+                    }
+                    @if (pagina > 1)
+                    {
+                        <a href="@Montar(texto, quandoChave, nicho, gratis, 1)" class="um-btn um-btn-ghost">Voltar ao início</a>
+                    }
+                </div>
+            </div>
+        }
+    }
+</div>
+
+<style>
+    .um-explorar { padding-bottom: 2.5rem; }
+    .um-explorar-form { display: grid; gap: 0.75rem; margin-top: 0.75rem; }
+    .um-explorar-filtros { display: grid; gap: 0.75rem; grid-template-columns: minmax(0, 1fr) auto; align-items: end; }
+    .um-explorar-filtros .um-btn { grid-column: 1 / -1; }
+    .um-explorar-gratis { align-items: center; padding-bottom: 0.15rem; }
+    .um-explorar-quando { margin-top: 0.75rem; }
+    .um-explorar-aviso { margin-top: 1.25rem; }
+    .um-explorar-total { margin: 1.25rem 0 0.9rem; font-weight: 600; color: var(--um-ink); }
+    .um-explorar-pag { display: grid; justify-items: center; gap: 0.6rem; margin-top: 1.75rem; }
+    .um-explorar-pag .um-row { justify-content: center; }
+    @@media (min-width: 900px) {
+        .um-explorar-form { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); align-items: end; }
+        .um-explorar-filtros { grid-template-columns: minmax(0, 1fr) auto auto; }
+        .um-explorar-filtros .um-btn { grid-column: auto; }
+    }
+</style>
+
+@code {
+    [SupplyParameterFromQuery(Name = "q")] public string? Q { get; set; }
+    [SupplyParameterFromQuery(Name = "quando")] public string? QuandoTexto { get; set; }
+    [SupplyParameterFromQuery(Name = "nicho")] public string? NichoTexto { get; set; }
+    // Texto, não bool/int: "gratis=on" ou "pagina=abc" numa URL colada não podem derrubar a página (o binder lança).
+    [SupplyParameterFromQuery(Name = "gratis")] public string? GratisTexto { get; set; }
+    [SupplyParameterFromQuery(Name = "pagina")] public string? PaginaTexto { get; set; }
+
+    private const int PorPagina = 18;
+
+    private static readonly (string? Chave, string Rotulo)[] OpcoesQuando =
+    [
+        (null, "Qualquer dia"),
+        ("aovivo", "Ao vivo agora"),
+        ("hoje", "Hoje"),
+        ("fds", "Fim de semana"),
+        ("semana", "Esta semana"),
+    ];
+
+    private string? texto;
+    private string? quandoChave;
+    private string? nicho;
+    private bool gratis;
+    private int pagina = 1;
+
+    private ResultadoDaBusca? resultado;
+    private IReadOnlyList<CategoriaDto> nichos = [];
+    private bool falhou;
+    private DateTime agora;
+    private string titulo = "Explorar eventos · UMURA";
+
+    private bool SemFiltros => texto is null && quandoChave is null && nicho is null && !gratis;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        agora = Relogio.GetUtcNow().UtcDateTime;
+        texto = Limpo(Q, 80);
+        nicho = Limpo(NichoTexto, 40)?.ToLowerInvariant();
+        var q = Limpo(QuandoTexto, 10)?.ToLowerInvariant();
+        quandoChave = q is "aovivo" or "hoje" or "fds" or "semana" ? q : null;
+        gratis = GratisTexto is { } g && (g.Equals("true", StringComparison.OrdinalIgnoreCase) || g == "1"
+                                          || g.Equals("on", StringComparison.OrdinalIgnoreCase));
+        pagina = int.TryParse(PaginaTexto, NumberStyles.None, CultureInfo.InvariantCulture, out var p) && p > 0 ? Math.Min(p, 500) : 1;
+
+        titulo = texto is null ? "Explorar eventos · UMURA" : $"“{texto}” · Explorar · UMURA";
+
+        falhou = false;
+        resultado = null;
+        try
+        {
+            nichos = await Catalogo.NichosAsync();
+            resultado = await Catalogo.BuscarAsync(new FiltroDeBusca(texto, nicho, ParaQuando(quandoChave), gratis, pagina, PorPagina));
+        }
+        catch (Exception ex)
+        {
+            Log.LogWarning("Busca de eventos indisponível ({Erro}).", ex.GetType().Name);
+            falhou = true;
+        }
+    }
+
+    private static string? Limpo(string? valor, int maximo)
+    {
+        if (string.IsNullOrWhiteSpace(valor)) return null;
+        var t = valor.Trim();
+        return t.Length > maximo ? t[..maximo] : t;
+    }
+
+    private static Quando ParaQuando(string? chave) => chave switch
+    {
+        "aovivo" => Quando.AoVivo,
+        "hoje" => Quando.Hoje,
+        "fds" => Quando.FimDeSemana,
+        "semana" => Quando.Semana,
+        _ => Quando.Todos,
+    };
+
+    /// <summary>A URL da agenda com estes filtros. Valor vazio sai da URL; página 1 também.</summary>
+    private static string Montar(string? q, string? quando, string? nicho, bool gratis, int pagina)
+    {
+        var partes = new List<string>(5);
+        if (!string.IsNullOrWhiteSpace(q)) partes.Add("q=" + Uri.EscapeDataString(q));
+        if (!string.IsNullOrWhiteSpace(quando)) partes.Add("quando=" + Uri.EscapeDataString(quando));
+        if (!string.IsNullOrWhiteSpace(nicho)) partes.Add("nicho=" + Uri.EscapeDataString(nicho));
+        if (gratis) partes.Add("gratis=true");
+        if (pagina > 1) partes.Add("pagina=" + pagina.ToString(CultureInfo.InvariantCulture));
+        return partes.Count == 0 ? "/eventos" : "/eventos?" + string.Join("&", partes);
+    }
+
+    private static string TotalTexto(int total) => total switch
+    {
+        0 => "Nenhum evento",
+        1 => "1 evento",
+        _ => $"{total.ToString("N0", CultureInfo.GetCultureInfo("pt-BR"))} eventos",
+    };
+
+    private static int De(ResultadoDaBusca r) => (r.Pagina - 1) * r.PorPagina + 1;
+
+    private static int Ate(ResultadoDaBusca r) => (r.Pagina - 1) * r.PorPagina + r.Itens.Count;
+}

@@ -1,0 +1,374 @@
+@page "/organizador"
+@attribute [Authorize(Roles = Papeis.OrganizadorOuAdmin)]
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@using System.Globalization
+@inject IAreaDoOrganizador Area
+@inject TimeProvider Relogio
+@inject ILogger<Painel> Log
+
+@* O painel do organizador: KPIs, vendas dos últimos 14 dias e a lista dos eventos. O serviço filtra pelo dono — o
+   organizador só vê o que é dele; o admin vê tudo (e a faixa avisa). *@
+
+<PageTitle>Meus eventos · UMURA</PageTitle>
+
+<div class="um-container orgp">
+    <header class="um-pagina-cab orgp-cab">
+        <div>
+            <span class="um-eyebrow">Área do organizador</span>
+            <h1>Olá, @primeiroNome</h1>
+            <p>Seus eventos, as vendas e quem está de olho.</p>
+        </div>
+        <a href="/organizador/evento/novo" class="um-btn um-btn-primary">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+            Novo evento
+        </a>
+    </header>
+
+    @if (!string.IsNullOrWhiteSpace(Salvo))
+    {
+        <div class="um-alert um-alert-success" role="status">
+            <div>
+                @if (Como == "rascunho")
+                {
+                    <b>Rascunho salvo.</b>
+                    <span>Ele só aparece na vitrine quando você marcar "Publicar agora".</span>
+                }
+                else
+                {
+                    <b>Evento salvo e publicado.</b>
+                    <a href="@($"/evento/{Uri.EscapeDataString(Salvo)}")">Ver a página do evento</a>
+                }
+            </div>
+        </div>
+    }
+    @if (Cancelado == "1")
+    {
+        <div class="um-alert um-alert-warning" role="status">
+            <div><b>Evento cancelado.</b> Ele saiu da vitrine e aparece como cancelado para quem comprou.</div>
+        </div>
+    }
+
+    @if (ehAdmin)
+    {
+        <div class="um-alert um-alert-info">
+            <div>Você está vendo os eventos de todos os organizadores (admin).</div>
+        </div>
+    }
+
+    @if (erro is not null)
+    {
+        <div class="um-alert um-alert-danger" role="alert">
+            <div><b>Não deu para abrir o painel.</b> @erro</div>
+        </div>
+        <div>
+            <button type="button" class="um-btn um-btn-outline" @onclick="CarregarAsync">Tentar de novo</button>
+        </div>
+    }
+    else if (painel is null)
+    {
+        <p class="um-visually-hidden" role="status">Carregando o painel…</p>
+        <div class="um-kpis" aria-hidden="true">
+            @for (var i = 0; i < 4; i++)
+            {
+                <div class="um-kpi">
+                    <span class="um-skeleton orgp-sk-rotulo"></span>
+                    <span class="um-skeleton orgp-sk-valor"></span>
+                </div>
+            }
+        </div>
+        <div class="um-card" aria-hidden="true"><span class="um-skeleton orgp-sk-grafico"></span></div>
+    }
+    else
+    {
+        var dias = painel.UltimosDias;
+        var maior = dias.Count == 0 ? 0 : dias.Max(d => d.Vendas);
+        var hoje = dias.Count == 0 ? default : dias[dias.Count - 1];
+
+        <section aria-labelledby="orgp-resumo">
+            <h2 id="orgp-resumo" class="um-visually-hidden">Resumo</h2>
+            <div class="um-kpis">
+                <div class="um-kpi">
+                    <span class="um-kpi-label">Eventos publicados</span>
+                    <span class="um-kpi-value" @key="@($"pub-{painel.Publicados}")" data-um-motion="counter" data-um-to="@painel.Publicados">@Num(painel.Publicados)</span>
+                    <span class="um-kpi-sub">de @Num(painel.Eventos) cadastrados</span>
+                </div>
+                <div class="um-kpi">
+                    <span class="um-kpi-label">Ingressos vendidos</span>
+                    <span class="um-kpi-value" @key="@($"vend-{painel.IngressosVendidos}")" data-um-motion="counter" data-um-to="@painel.IngressosVendidos" data-um-delay="0.1">@Num(painel.IngressosVendidos)</span>
+                    <span class="um-kpi-sub">somando todos os eventos</span>
+                </div>
+                <div class="um-kpi">
+                    <span class="um-kpi-label">Receita (simulada)</span>
+                    <span class="um-kpi-value orgp-dinheiro" @key="@($"rec-{painel.ReceitaCentavos}")" data-um-motion="counter" data-um-to="@ReaisInvariante(painel.ReceitaCentavos)" data-um-prefix="R$ " data-um-decimals="2" data-um-delay="0.2">@Dinheiro.Reais(painel.ReceitaCentavos)</span>
+                    <span class="um-kpi-sub">pagamento de mentirinha</span>
+                </div>
+                <div class="um-kpi">
+                    <span class="um-kpi-label">Visualizações</span>
+                    <span class="um-kpi-value" @key="@($"vis-{painel.Visualizacoes}")" data-um-motion="counter" data-um-to="@painel.Visualizacoes" data-um-delay="0.3">@Num(painel.Visualizacoes)</span>
+                    <span class="um-kpi-sub">@Num(hoje.Visualizacoes) hoje</span>
+                </div>
+            </div>
+        </section>
+
+        @if (eventos.Count > 0 && dias.Count > 0)
+        {
+            <section class="um-card" aria-labelledby="orgp-graf">
+                <div class="orgp-graf-cab">
+                    <div>
+                        <h2 id="orgp-graf" class="orgp-h2">Últimos 14 dias</h2>
+                        <span class="um-hint">Ingressos pagos por dia</span>
+                    </div>
+                    <p class="orgp-total">
+                        <b>@Num(dias.Sum(d => d.Vendas))</b> ingressos · <b>@Num(dias.Sum(d => d.Visualizacoes))</b> visualizações
+                    </p>
+                </div>
+
+                <div class="um-barras" role="img" aria-label="@RotuloDoGrafico(dias, maior)">
+                    @for (var i = 0; i < dias.Count; i++)
+                    {
+                        var d = dias[i];
+                        var pct = maior == 0 ? 0 : (int)Math.Round(d.Vendas * 100.0 / maior);
+                        <span class="@(i == dias.Count - 1 ? "is-hoje" : null)" style="--h:@(pct)%" title="@($"{Dia(d.Dia)}: {d.Vendas} vendidos")"></span>
+                    }
+                </div>
+                <div class="um-barras-eixo" aria-hidden="true">
+                    @for (var i = 0; i < dias.Count; i++)
+                    {
+                        <span>@((dias.Count - 1 - i) % 3 == 0 ? Dia(dias[i].Dia) : "")</span>
+                    }
+                </div>
+
+                <div class="orgp-legenda">
+                    <span><i aria-hidden="true"></i>Vendas do dia</span>
+                    <span><i class="is-hoje" aria-hidden="true"></i>Hoje</span>
+                </div>
+
+                <p class="orgp-hoje">
+                    Hoje: <b>@Num(hoje.Vendas)</b> @(hoje.Vendas == 1 ? "ingresso vendido" : "ingressos vendidos")
+                    e <b>@Num(hoje.Visualizacoes)</b> @(hoje.Visualizacoes == 1 ? "visualização" : "visualizações").
+                </p>
+
+                <details class="orgp-detalhe">
+                    <summary>Ver dia a dia</summary>
+                    <div class="um-table-wrap">
+                        <table class="um-table">
+                            <caption class="um-visually-hidden">Vendas e visualizações por dia</caption>
+                            <thead>
+                                <tr>
+                                    <th scope="col">Dia</th>
+                                    <th scope="col" class="num">Ingressos</th>
+                                    <th scope="col" class="num">Visualizações</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var d in Enumerable.Reverse(dias))
+                                {
+                                    <tr>
+                                        <td data-rotulo="Dia">@Dia(d.Dia)</td>
+                                        <td data-rotulo="Ingressos" class="num">@Num(d.Vendas)</td>
+                                        <td data-rotulo="Visualizações" class="num">@Num(d.Visualizacoes)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </details>
+            </section>
+        }
+
+        <section class="orgp-bloco" aria-labelledby="orgp-eventos">
+            <div class="orgp-sec-cab">
+                <h2 id="orgp-eventos" class="orgp-h2">Seus eventos</h2>
+                @if (eventos.Count > 0)
+                {
+                    <span class="um-hint">@eventos.Count @(eventos.Count == 1 ? "evento" : "eventos")</span>
+                }
+            </div>
+
+            @if (eventos.Count == 0)
+            {
+                <div class="um-card um-empty">
+                    <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <rect x="3" y="5" width="18" height="16" rx="2" /><path d="M16 3v4M8 3v4M3 10h18M12 13v5M9.5 15.5h5" />
+                    </svg>
+                    <h3>Cadastre seu primeiro evento</h3>
+                    <p>Leva uns 2 minutos: título, data, o ponto no mapa, uma ilustração e os ingressos.</p>
+                    <a href="/organizador/evento/novo" class="um-btn um-btn-primary">Novo evento</a>
+                </div>
+            }
+            else
+            {
+                <div class="um-table-wrap">
+                    <table class="um-table orgp-tabela">
+                        <caption class="um-visually-hidden">Seus eventos, do mais novo para o mais antigo</caption>
+                        <thead>
+                            <tr>
+                                <th scope="col">Evento</th>
+                                <th scope="col">Quando</th>
+                                <th scope="col">Status</th>
+                                <th scope="col" class="num">Vendidos</th>
+                                <th scope="col" class="num">Receita</th>
+                                <th scope="col" class="num">Visualizações</th>
+                                <th scope="col"><span class="um-visually-hidden">Ações</span></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var l in eventos)
+                            {
+                                var (classe, texto) = StatusDe(l);
+                                <tr @key="l.Id">
+                                    <td>
+                                        <div class="orgp-ev">
+                                            <img src="@Foto.Card(l.ImagemUrl)" alt="" width="72" height="40" loading="lazy" decoding="async" />
+                                            <div>
+                                                <b>@l.Titulo</b>
+                                                <small>@(ehAdmin ? $"{l.Categoria} · por {l.Organizador}" : l.Categoria)</small>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td data-rotulo="Quando" class="um-tnum">@BrazilTime.Format(l.InicioUtc, "dd/MM HH:mm")</td>
+                                    <td data-rotulo="Status">
+                                        <span class="orgp-badges">
+                                            <span class="um-badge @classe">@texto</span>
+                                            @if (l.Destaque && texto == "Publicado")
+                                            {
+                                                <span class="um-badge um-badge-now">Destaque</span>
+                                            }
+                                        </span>
+                                    </td>
+                                    <td data-rotulo="Vendidos" class="num">@Num(l.Vendidos)/@Num(l.Capacidade)</td>
+                                    <td data-rotulo="Receita" class="num">@Dinheiro.Reais(l.ReceitaCentavos)</td>
+                                    <td data-rotulo="Visualizações" class="num">@Num(l.Visualizacoes)</td>
+                                    <td>
+                                        <div class="orgp-acoes">
+                                            <a href="@($"/organizador/evento/{l.Id}")" class="um-btn um-btn-outline">Editar<span class="um-visually-hidden"> @l.Titulo</span></a>
+                                            <a href="@($"/organizador/evento/{l.Id}/vendas")" class="um-btn um-btn-ghost">Vendas<span class="um-visually-hidden"> de @l.Titulo</span></a>
+                                            @if (l.Status != StatusDoEvento.Rascunho)
+                                            {
+                                                <a href="@($"/evento/{l.Slug}")" class="um-btn um-btn-ghost">Ver<span class="um-visually-hidden"> a página de @l.Titulo</span></a>
+                                            }
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </section>
+    }
+</div>
+
+@code {
+    private static readonly CultureInfo PtBr = CultureInfo.GetCultureInfo("pt-BR");
+
+    [CascadingParameter] private Task<AuthenticationState>? Estado { get; set; }
+
+    /// <summary>O slug do evento que acabou de ser salvo (vem do formulário de edição).</summary>
+    [SupplyParameterFromQuery(Name = "salvo")] public string? Salvo { get; set; }
+
+    /// <summary>"publicado" ou "rascunho": o que o aviso de salvo diz.</summary>
+    [SupplyParameterFromQuery(Name = "como")] public string? Como { get; set; }
+
+    [SupplyParameterFromQuery(Name = "cancelado")] public string? Cancelado { get; set; }
+
+    private PainelDoOrganizador? painel;
+    private IReadOnlyList<LinhaDoMeuEvento> eventos = [];
+    private string primeiroNome = "organizador";
+    private bool ehAdmin;
+    private string? erro;
+    private DateTime agora;
+
+    protected override Task OnInitializedAsync() => CarregarAsync();
+
+    private async Task CarregarAsync()
+    {
+        erro = null;
+        painel = null;
+        agora = Relogio.GetUtcNow().UtcDateTime;
+        try
+        {
+            var user = Estado is null ? new ClaimsPrincipal(new ClaimsIdentity()) : (await Estado).User;
+            primeiroNome = user.Identity?.Name?.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "organizador";
+            ehAdmin = Autorizacao.EhAdmin(user);
+
+            // Cada chamada abre o próprio contexto (fábrica), mas em sequência: o circuito não ganha nada com corrida aqui.
+            var p = await Area.PainelAsync(user);
+            eventos = await Area.MeusEventosAsync(user);
+            painel = p;
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            erro = ex.Message;
+        }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "Falha ao carregar o painel do organizador.");
+            erro = "O painel não carregou agora. Tente de novo em instantes.";
+        }
+    }
+
+    /// <summary>Publicado / Rascunho / Cancelado / Encerrado — o texto sempre junto da cor.</summary>
+    private (string Classe, string Texto) StatusDe(LinhaDoMeuEvento l)
+    {
+        if (l.Status == StatusDoEvento.Cancelado) return ("um-badge-danger", "Cancelado");
+        if (l.FimUtc <= agora) return ("", "Encerrado");
+        if (l.Status == StatusDoEvento.Rascunho) return ("um-badge-info", "Rascunho");
+        return ("um-badge-success", "Publicado");
+    }
+
+    private static string RotuloDoGrafico(IReadOnlyList<(DateOnly Dia, int Vendas, int Visualizacoes)> dias, int maior)
+    {
+        var total = dias.Sum(d => d.Vendas);
+        if (total == 0) return "Nenhum ingresso vendido nos últimos 14 dias.";
+        var pico = dias.Last(d => d.Vendas == maior);
+        return $"Ingressos vendidos por dia nos últimos 14 dias: {total} no total; o melhor dia foi {Dia(pico.Dia)}, com {maior}. Hoje: {dias[dias.Count - 1].Vendas}.";
+    }
+
+    private static string Dia(DateOnly d) => d.ToString("dd/MM", CultureInfo.InvariantCulture);
+
+    private static string Num(int n) => n.ToString("N0", PtBr);
+
+    /// <summary>O alvo do contador em reais com ponto decimal (o JS lê com parseFloat).</summary>
+    private static string ReaisInvariante(int centavos) => (centavos / 100m).ToString("0.00", CultureInfo.InvariantCulture);
+}
+
+<style>
+    .orgp { display: grid; gap: 1.25rem; padding-bottom: var(--um-sec-pad); }
+    .orgp-cab { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 1rem; }
+    .orgp-h2 { margin: 0; font-size: clamp(1.2rem, 3.4vw, 1.5rem); }
+    .orgp-bloco { display: grid; gap: 0.75rem; }
+    .orgp-sec-cab { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; }
+
+    .orgp .um-kpi-value { overflow-wrap: anywhere; }
+    .orgp-dinheiro { font-size: clamp(1.25rem, 3.6vw, 2rem); }
+
+    .orgp-sk-rotulo { display: block; width: 60%; height: 0.8rem; }
+    .orgp-sk-valor { display: block; width: 45%; height: 2rem; }
+    .orgp-sk-grafico { display: block; width: 100%; height: 180px; }
+
+    .orgp-graf-cab { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 0.5rem 1rem; margin-bottom: 0.5rem; }
+    .orgp-total { margin: 0; font-size: 0.9375rem; color: var(--um-ink-soft); font-variant-numeric: tabular-nums; }
+    .orgp-total b { color: var(--um-ink); }
+    .orgp-legenda { display: flex; flex-wrap: wrap; gap: 0.35rem 1.25rem; margin-top: 0.75rem; font-size: 0.8125rem; color: var(--um-ink-soft); }
+    .orgp-legenda span { display: inline-flex; align-items: center; gap: 0.4rem; }
+    .orgp-legenda i { display: inline-block; width: 12px; height: 12px; border-radius: var(--um-radius-pill); background: var(--um-brand); }
+    .orgp-legenda i.is-hoje { background: var(--um-accent); }
+    .orgp-hoje { margin: 0.75rem 0 0; font-variant-numeric: tabular-nums; }
+    .orgp-detalhe { margin-top: 0.75rem; }
+    .orgp-detalhe summary { display: inline-flex; align-items: center; min-height: var(--um-tap); font-weight: 600; color: var(--um-brand); cursor: pointer; }
+    .orgp-detalhe .um-table-wrap { margin-top: 0.5rem; max-height: 360px; overflow-y: auto; }
+
+    .orgp-ev { display: flex; align-items: center; gap: 0.75rem; min-width: 14rem; }
+    .orgp-ev img { width: 72px; height: 40px; flex: none; object-fit: cover; border-radius: var(--um-radius-sm); background: var(--um-surface-2); }
+    .orgp-ev b { display: block; color: var(--um-brand); line-height: 1.25; }
+    .orgp-ev small { display: block; color: var(--um-ink-muted); font-size: 0.8125rem; font-weight: 600; }
+    .orgp-badges { display: inline-flex; flex-wrap: wrap; gap: 0.3rem; }
+    .orgp-acoes { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.25rem; }
+    .orgp-acoes .um-btn { padding-inline: 0.9rem; }
+
+    @@media (max-width: 640px) {
+        .orgp-ev { min-width: 0; margin-bottom: 0.35rem; }
+        .orgp-acoes { justify-content: flex-start; margin-top: 0.5rem; }
+    }
+</style>

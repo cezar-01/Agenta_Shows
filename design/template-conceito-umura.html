@@ -1,0 +1,867 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Conceito — UMURA</title>
+<!--
+  TEMPLATE DE CONCEITO UMURA
+  ──────────────────────────
+  Base standalone de todo conceito visual da UMURA (copiada do template-conceito.html
+  da skill mypods-design; valem as REGRAS do MyPods, não as cores). Fluxo:
+  1. Copie este arquivo para design/conceitos/<tela>.html
+  2. APAGUE tudo entre <!​-- DEMO-INICIO --​> e <!​-- DEMO-FIM --​> (e os estilos .demo-*)
+  3. Construa o conceito reutilizando as classes .um-* (mobile 390px PRIMEIRO)
+  4. Prints com Playwright (playwright-core + Chromium, viewport exato, fullPage):
+     390 primeiro, depois 1440, claro e escuro (colorScheme: 'dark')
+  Tokens = seção 2 do PLANO_UMURA.md. Quando o app.css existir, ele é a fonte da verdade.
+  Fontes: Outfit (substituta da Coco Gothic) + Readex Pro. No conceito vêm do Google Fonts;
+  no app são self-hosted (CSP font-src 'self').
+  Tema: claro por padrão; escuro por prefers-color-scheme OU <html data-theme="dark">.
+  ?tema=escuro|claro força o tema · ?estatico=1 desliga a coreografia (prints/iframes).
+-->
+<!-- HEAD:INICIO -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300..800&family=Readex+Pro:wght@300..700&display=swap" rel="stylesheet">
+<script>
+/* tema antes do primeiro paint (sem flash) + gate do motion */
+(function () {
+  var r = document.documentElement, q = location.search;
+  try { var t = localStorage.getItem("um-tema"); if (t === "light" || t === "dark") r.setAttribute("data-theme", t); } catch (e) {}
+  var m = /[?&]tema=(claro|escuro)/.exec(q); if (m) r.setAttribute("data-theme", m[1] === "escuro" ? "dark" : "light");
+  if (!/[?&](estatico|embed)=1/.test(q)) {
+    r.classList.add("um-motion");
+    setTimeout(function () { if (!window.gsap) r.classList.remove("um-motion"); }, 2500);
+  }
+})();
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.13.0/gsap.min.js" onerror="document.documentElement.classList.remove('um-motion')"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.13.0/ScrollTrigger.min.js"></script>
+<!-- HEAD:FIM -->
+<style>
+/* ==== BASE:INICIO ==== */
+/* ============ TOKENS — claro (padrão) ============ */
+:root{
+  color-scheme: light;
+  /* paleta oficial (PDF) — use os papéis abaixo, não estas constantes */
+  --um-deep-green:#0B3C3F; --um-worker-green:#6E6F5E; --um-premium-grey:#282828;
+  --um-off-white:#EDECE7; --um-coral:#FF5A3C;
+
+  --um-bg:#EDECE7;            /* Off White */
+  --um-surface:#F6F5F1;       /* card, input, header */
+  --um-surface-2:#E4E2DB;     /* hover, poço de imagem */
+  --um-border:#D3D1C8;
+  --um-border-soft:#E0DED6;
+  --um-ink:#282828;           /* Premium Grey — texto principal (12,5:1) */
+  --um-ink-soft:#3F3F3F;      /* corpo (8,9:1) */
+  --um-ink-muted:#6E6F5E;     /* Worker Green — SÓ rótulo ≥14px/600 (4,33:1) */
+  --um-brand:#0B3C3F;         /* Deep Green — títulos, CTA primário (10,25:1) */
+  --um-brand-ink:#EDECE7;
+  --um-brand-hover:#0F4A4D;
+  --um-brand-bg:rgba(11,60,63,.08);
+  --um-accent:#FF5A3C;        /* Coral — agora/ação, 1 por viewport, NUNCA texto pequeno sobre Off White (2,62:1) */
+  --um-accent-ink:#282828;    /* Premium Grey sobre coral = 4,76:1 */
+  --um-accent-hover:#FF6E54;  /* hover clareia: mantém ≥4,5:1 com a tinta */
+  --um-accent-bg:rgba(255,90,60,.12);
+  /* semânticos: cor cheia = ícone/borda; *-ink = texto (o tom cheio reprova em 12px sobre o fundo 12%) */
+  --um-success:#1F8A4C; --um-success-bg:rgba(31,138,76,.12);  --um-success-ink:#17663A;
+  --um-warning:#B8860B; --um-warning-bg:rgba(184,134,11,.14); --um-warning-ink:#7A5807;
+  --um-danger:#C8372D;  --um-danger-bg:rgba(200,55,45,.12);   --um-danger-ink:#A12A22;
+  --um-info:#2F6F9F;    --um-info-bg:rgba(47,111,159,.12);    --um-info-ink:#245A82;
+  --um-focus:#0B3C3F;
+  --um-overlay:rgba(11,60,63,.42);
+  --um-skel:#E4E2DB; --um-skel-hi:#F3F2EE;
+  /* mapa do conceito (no app: tiles "smooth" ou filtro CSS no .leaflet-tile-pane) */
+  --um-map-land:#E4E2DA; --um-map-street:#F2F1EC; --um-map-road:#FBFAF7; --um-map-road-edge:#D2CFC4;
+  --um-map-park:#D3DBC8; --um-map-water:#BED0D0; --um-map-label:#5E5F50; --um-map-halo:rgba(237,236,231,.92);
+
+  --um-radius-sm:8px; --um-radius:14px; --um-radius-lg:20px; --um-radius-pill:999px;
+  /* no claro a sombra LÊ (oposto do dark do MyPods): suave + borda */
+  --um-shadow-sm:0 1px 2px rgba(40,40,40,.06),0 2px 6px rgba(40,40,40,.05);
+  --um-shadow:0 2px 4px rgba(40,40,40,.05),0 8px 24px rgba(40,40,40,.10);
+  --um-shadow-lg:0 4px 10px rgba(40,40,40,.06),0 18px 48px rgba(40,40,40,.16);
+
+  --um-display:'Coco Gothic','Outfit',system-ui,sans-serif;
+  --um-font:'Readex Pro',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --um-mono:ui-monospace,'Cascadia Mono',Consolas,monospace;
+
+  --um-container:1280px; --um-header:60px; --um-nav-h:64px;
+  --um-gutter:clamp(1rem,4vw,1.5rem); --um-sec-pad:clamp(2rem,6vw,4rem); --um-tap:44px;
+  --um-ease-sheet:cubic-bezier(.32,.72,0,1);
+  --um-z-sticky:10; --um-z-drawer:49; --um-z-header:50; --um-z-fab:55; --um-z-sheet:60;
+  --um-z-dropdown:300; --um-z-float:940; --um-z-consent:1000; --um-z-critical:1100;
+}
+@media (min-width:1024px){ :root{ --um-header:72px; } }
+
+/* ============ TOKENS — escuro (prefers-color-scheme OU data-theme="dark") ============ */
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    color-scheme: dark;
+    --um-bg:#0B3C3F; --um-surface:#0F4A4D; --um-surface-2:#15575A; --um-border:#1E6366; --um-border-soft:#15575A;
+    --um-ink:#EDECE7; --um-ink-soft:#D6D5CF; --um-ink-muted:#A9B3A6;
+    --um-brand:#EDECE7; --um-brand-ink:#0B3C3F; --um-brand-hover:#F6F5F1; --um-brand-bg:rgba(237,236,231,.08);
+    --um-accent-bg:rgba(255,90,60,.16);
+    --um-success:#6FD39A; --um-success-bg:rgba(111,211,154,.14); --um-success-ink:#8FE0B2;
+    --um-warning:#E9C46A; --um-warning-bg:rgba(233,196,106,.14); --um-warning-ink:#F0D58E;
+    --um-danger:#FF8A7A;  --um-danger-bg:rgba(255,138,122,.14);  --um-danger-ink:#FFA597;
+    --um-info:#8CC3EA;    --um-info-bg:rgba(140,195,234,.14);    --um-info-ink:#A8D3F0;
+    --um-focus:#EDECE7; --um-overlay:rgba(3,22,24,.62);
+    --um-skel:#15575A; --um-skel-hi:#1E6366; --um-media-filter:brightness(.9) saturate(.95);
+    --um-map-land:#0D4245; --um-map-street:#124D50; --um-map-road:#1A5D60; --um-map-road-edge:#0A3537;
+    --um-map-park:#16574A; --um-map-water:#093A3C; --um-map-label:#A9B3A6; --um-map-halo:rgba(11,60,63,.88);
+    --um-shadow-sm:0 1px 2px rgba(0,0,0,.25);
+    --um-shadow:0 2px 6px rgba(0,0,0,.25),0 10px 28px rgba(0,0,0,.30);
+    --um-shadow-lg:0 4px 12px rgba(0,0,0,.30),0 22px 56px rgba(0,0,0,.45);
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme: dark;
+  --um-bg:#0B3C3F; --um-surface:#0F4A4D; --um-surface-2:#15575A; --um-border:#1E6366; --um-border-soft:#15575A;
+  --um-ink:#EDECE7; --um-ink-soft:#D6D5CF; --um-ink-muted:#A9B3A6;
+  --um-brand:#EDECE7; --um-brand-ink:#0B3C3F; --um-brand-hover:#F6F5F1; --um-brand-bg:rgba(237,236,231,.08);
+  --um-accent-bg:rgba(255,90,60,.16);
+  --um-success:#6FD39A; --um-success-bg:rgba(111,211,154,.14); --um-success-ink:#8FE0B2;
+  --um-warning:#E9C46A; --um-warning-bg:rgba(233,196,106,.14); --um-warning-ink:#F0D58E;
+  --um-danger:#FF8A7A;  --um-danger-bg:rgba(255,138,122,.14);  --um-danger-ink:#FFA597;
+  --um-info:#8CC3EA;    --um-info-bg:rgba(140,195,234,.14);    --um-info-ink:#A8D3F0;
+  --um-focus:#EDECE7; --um-overlay:rgba(3,22,24,.62);
+  --um-skel:#15575A; --um-skel-hi:#1E6366; --um-media-filter:brightness(.9) saturate(.95);
+  --um-map-land:#0D4245; --um-map-street:#124D50; --um-map-road:#1A5D60; --um-map-road-edge:#0A3537;
+  --um-map-park:#16574A; --um-map-water:#093A3C; --um-map-label:#A9B3A6; --um-map-halo:rgba(11,60,63,.88);
+  --um-shadow-sm:0 1px 2px rgba(0,0,0,.25);
+  --um-shadow:0 2px 6px rgba(0,0,0,.25),0 10px 28px rgba(0,0,0,.30);
+  --um-shadow-lg:0 4px 12px rgba(0,0,0,.30),0 22px 56px rgba(0,0,0,.45);
+}
+
+/* ============ BASE ============ */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:auto;-webkit-text-size-adjust:100%;text-size-adjust:100%}
+body{
+  min-height:100vh;background:var(--um-bg);color:var(--um-ink-soft);
+  font-family:var(--um-font);font-size:16px;line-height:1.55;font-weight:400;
+  -webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent;
+}
+h1,h2,h3,h4{font-family:var(--um-display);color:var(--um-ink);font-weight:600;line-height:1.12;letter-spacing:0}
+h1{font-size:clamp(2rem,4vw,2.75rem)}
+h2{font-size:clamp(1.5rem,3vw,2rem)}
+h3{font-size:1.2rem}
+p{max-width:68ch}
+a{color:var(--um-brand);text-decoration:underline;text-underline-offset:3px;transition:color .15s ease}
+img,svg{display:block}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+::selection{background:var(--um-accent-bg);color:var(--um-ink)}
+:focus-visible{outline:2px solid var(--um-focus);outline-offset:2px;border-radius:4px}
+.tnum{font-variant-numeric:tabular-nums}
+.um-visually-hidden{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.um-icon{width:20px;height:20px;flex:none;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+
+/* ============ LAYOUT ============ */
+.um-container{max-width:var(--um-container);margin-inline:auto;padding-inline:var(--um-gutter)}
+.um-section{padding-block:var(--um-sec-pad)}
+/* eyebrow: texto Deep Green + traço coral de 3px (coral como LINHA, nunca como texto) */
+.um-eyebrow{display:inline-flex;align-items:center;gap:.6rem;font:600 12px/1.2 var(--um-font);letter-spacing:.16em;text-transform:uppercase;color:var(--um-brand)}
+.um-eyebrow::before{content:"";width:20px;height:3px;border-radius:2px;background:var(--um-accent);flex:none}
+.um-sec-head{display:flex;flex-direction:column;gap:.5rem;margin-bottom:1.75rem}
+.um-sec-sub{color:var(--um-ink-soft);font-size:1rem}
+.um-display{font-family:var(--um-display);font-size:clamp(2.4rem,7vw,4.5rem);line-height:1;letter-spacing:.04em;text-transform:uppercase;font-weight:700;color:var(--um-brand)}
+.um-meta{font:600 14px/1.3 var(--um-font);color:var(--um-ink-muted)}
+
+/* ============ LOGO ============ */
+.um-logo{display:inline-flex;align-items:center;gap:.55rem;color:var(--um-brand);text-decoration:none;min-height:var(--um-tap)}
+.um-logo svg{width:30px;height:30px}
+.um-logo b{font:700 1.2rem/1 var(--um-display);letter-spacing:.14em}
+
+/* ============ BOTÕES (sempre pílula) ============ */
+.um-btn{
+  position:relative;display:inline-flex;align-items:center;justify-content:center;gap:.5rem;
+  min-height:var(--um-tap);padding:.6rem 1.35rem;border-radius:var(--um-radius-pill);
+  font:600 15px/1.2 var(--um-font);text-decoration:none;white-space:nowrap;cursor:pointer;
+  border:1px solid transparent;
+  transition:background-color .15s ease,border-color .15s ease,color .15s ease,transform .1s ease-out;
+}
+.um-btn:active{transform:scale(.97)}
+.um-btn .um-icon{width:20px;height:20px}
+.um-btn-primary{background:var(--um-brand);color:var(--um-brand-ink)}
+.um-btn-primary:hover{background:var(--um-brand-hover)}
+.um-btn-accent{background:var(--um-accent);color:var(--um-accent-ink)}   /* 1 por viewport: "Ver ingresso" */
+.um-btn-accent:hover{background:var(--um-accent-hover)}
+.um-btn-outline{background:transparent;color:var(--um-ink);border-color:var(--um-border)}
+.um-btn-outline:hover{background:var(--um-surface-2);border-color:var(--um-ink-muted)}
+.um-btn-ghost{background:transparent;color:var(--um-ink-soft)}
+.um-btn-ghost:hover{background:var(--um-surface-2);color:var(--um-ink)}
+.um-btn-danger{background:transparent;color:var(--um-danger-ink);border-color:var(--um-danger)}
+.um-btn-danger:hover{background:var(--um-danger-bg)}
+.um-btn[disabled],.um-btn[aria-disabled="true"]{opacity:.45;cursor:not-allowed;transform:none}
+.um-btn-primary:focus-visible,.um-btn-accent:focus-visible{outline-offset:3px}
+.um-btn-block{width:100%}
+.um-btn-icon{width:var(--um-tap);height:var(--um-tap);padding:0;border-radius:50%;flex:none}
+.um-btn-icon.um-btn-outline{background:var(--um-surface)}
+.um-btn-icon[aria-pressed="true"]{color:var(--um-accent-ink);background:var(--um-accent);border-color:var(--um-accent)}
+.um-btn-icon[aria-pressed="true"] .um-icon{fill:currentColor}
+
+/* ============ CARD ============ */
+.um-card{background:var(--um-surface);border:1px solid var(--um-border-soft);border-radius:var(--um-radius);box-shadow:var(--um-shadow-sm);padding:1.25rem}
+.um-card-lg{border-radius:var(--um-radius-lg)}
+.um-media{position:relative;aspect-ratio:16/9;border-radius:var(--um-radius-sm);overflow:hidden;background:var(--um-surface-2);border:1px solid var(--um-border-soft)}
+.um-media > svg{width:100%;height:100%;filter:var(--um-media-filter,none)}
+
+/* ============ MAPA ILUSTRATIVO (símbolo #map-geo) ============ */
+.g-land{fill:var(--um-map-land)}
+.g-street{fill:none;stroke:var(--um-map-street);stroke-width:3}
+.g-park{fill:var(--um-map-park)}
+.g-water{fill:var(--um-map-water)}
+.g-river{fill:none;stroke:var(--um-map-water);stroke-width:6;stroke-linecap:round;vector-effect:non-scaling-stroke}
+.g-rd{fill:none;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+.g-casing-minor{stroke:var(--um-map-road-edge);stroke-width:6}
+.g-road-minor{stroke:var(--um-map-road);stroke-width:4}
+.g-casing-major{stroke:var(--um-map-road-edge);stroke-width:9}
+.g-road-major{stroke:var(--um-map-road);stroke-width:6.5}
+
+/* ============ CHIP (filtro, aria-pressed) ============ */
+.um-chips{display:flex;gap:.5rem;flex-wrap:wrap}
+.um-chip{
+  position:relative;display:inline-flex;align-items:center;gap:.4rem;min-height:40px;padding:0 .95rem;
+  border-radius:var(--um-radius-pill);font:500 14px/1 var(--um-font);white-space:nowrap;cursor:pointer;
+  background:var(--um-surface);color:var(--um-ink);border:1px solid var(--um-border);
+  transition:background-color .12s ease,border-color .12s ease,color .12s ease;
+}
+.um-chip::after{content:"";position:absolute;inset:-2px 0}  /* alvo de 44px sem engordar o visual */
+.um-chip .um-icon{width:18px;height:18px}
+.um-chip:hover{border-color:var(--um-ink-muted)}
+.um-chip[aria-pressed="true"]{background:var(--um-brand);color:var(--um-brand-ink);border-color:var(--um-brand)}
+.um-dot-now{width:8px;height:8px;border-radius:50%;background:var(--um-accent);flex:none}
+
+/* ============ BADGE (status = cor + ícone/texto) ============ */
+.um-badge{display:inline-flex;align-items:center;gap:.3rem;min-height:24px;padding:0 .6rem;border-radius:var(--um-radius-pill);font:600 12px/1 var(--um-font);white-space:nowrap}
+.um-badge .um-icon{width:14px;height:14px;stroke-width:2}
+.um-badge-success{color:var(--um-success-ink);background:var(--um-success-bg)}
+.um-badge-warning{color:var(--um-warning-ink);background:var(--um-warning-bg)}
+.um-badge-danger{color:var(--um-danger-ink);background:var(--um-danger-bg)}
+.um-badge-info{color:var(--um-info-ink);background:var(--um-info-bg)}
+.um-badge-free{color:var(--um-brand);background:var(--um-brand-bg);box-shadow:inset 0 0 0 1px var(--um-border)}
+.um-badge-now{color:var(--um-ink);background:var(--um-accent-bg)}
+.um-badge-neutral{color:var(--um-ink-soft);background:var(--um-surface-2)}
+/* etiqueta de categoria sobre imagem (ícone + texto, nunca só cor) */
+.um-tag{display:inline-flex;align-items:center;gap:.35rem;min-height:26px;padding:0 .65rem;border-radius:var(--um-radius-pill);font:600 12px/1 var(--um-font);background:var(--um-surface);color:var(--um-ink);box-shadow:var(--um-shadow-sm)}
+.um-tag .um-icon{width:14px;height:14px;stroke-width:2}
+
+/* ============ CARD DE EVENTO (estrutura do kit Urbura) ============ */
+.um-evento{position:relative;display:flex;flex-direction:column;background:var(--um-surface);border:1px solid var(--um-border-soft);border-radius:var(--um-radius);box-shadow:var(--um-shadow-sm);overflow:hidden;transition:border-color .15s ease,box-shadow .15s ease,transform .15s ease-out}
+.um-evento:hover{border-color:var(--um-border);box-shadow:var(--um-shadow);transform:translateY(-2px)}
+.um-evento .um-media{border-radius:0;border:0;border-bottom:1px solid var(--um-border-soft)}
+.um-evento .um-tag{position:absolute;left:10px;top:10px}
+.um-evento-fav{position:absolute;right:6px;top:6px;z-index:2}
+.um-evento-fav.um-btn-icon{background:var(--um-surface);box-shadow:var(--um-shadow-sm)}
+.um-evento-body{display:flex;flex-direction:column;gap:.3rem;padding:.9rem 1rem 1rem;flex:1}
+.um-when{display:flex;align-items:center;gap:.45rem;font:600 12.5px/1.2 var(--um-font);letter-spacing:.08em;text-transform:uppercase;color:var(--um-ink)}
+.um-evento-title{font:600 1.12rem/1.2 var(--um-display);color:var(--um-ink)}
+.um-evento-title a{color:inherit;text-decoration:none}
+.um-evento-title a::after{content:"";position:absolute;inset:0;z-index:1} /* card inteiro clicável */
+.um-where{display:flex;align-items:center;gap:.3rem;font-size:14px;color:var(--um-ink-soft)}
+.um-where .um-icon{width:16px;height:16px;color:var(--um-ink-muted)}
+.um-evento-foot{display:flex;align-items:center;justify-content:space-between;gap:.5rem;margin-top:auto;padding-top:.6rem}
+.um-price{font:600 14px/1 var(--um-font);color:var(--um-ink)}
+/* variante linha (lista/sheet) */
+.um-evento-row{display:grid;grid-template-columns:128px 1fr;gap:.85rem;align-items:start;padding:.75rem;flex-direction:row}
+.um-evento-row .um-media{border-radius:var(--um-radius-sm);border:1px solid var(--um-border-soft)}
+.um-evento-row .um-evento-body{padding:0;gap:.2rem}
+.um-evento-row .um-evento-title{font-size:1.02rem}
+
+/* ============ CAMPOS ============ */
+.um-field{display:flex;flex-direction:column;gap:6px;margin-bottom:1rem}
+.um-label{font:600 14px/1.3 var(--um-font);color:var(--um-ink)}
+.um-label .opt{font-weight:400;color:var(--um-ink-soft)}
+.um-input-wrap{position:relative;display:flex;align-items:center}
+.um-input-wrap > .um-icon{position:absolute;left:14px;color:var(--um-ink-muted);pointer-events:none}
+.um-input{
+  width:100%;min-height:48px;padding:0 14px;font:400 16px/1.2 var(--um-font);
+  background:var(--um-surface);color:var(--um-ink);border:1px solid var(--um-border);border-radius:12px;
+  transition:border-color .15s ease;
+}
+.um-input-wrap > .um-icon + .um-input{padding-left:44px}
+.um-input::placeholder{color:var(--um-ink-muted);opacity:1}
+.um-input:hover{border-color:var(--um-ink-muted)}
+.um-input:focus-visible{outline:2px solid var(--um-focus);outline-offset:1px;border-color:var(--um-brand)}
+.um-hint{font-size:13px;color:var(--um-ink-soft)}
+.um-field.is-error .um-input{border-color:var(--um-danger)}
+.um-error-msg{display:flex;align-items:center;gap:.35rem;font:500 13px/1.3 var(--um-font);color:var(--um-danger-ink)}
+.um-error-msg .um-icon{width:16px;height:16px}
+
+/* ============ ALERTA / VAZIO ============ */
+.um-alert{display:flex;gap:.75rem;align-items:flex-start;padding:.9rem 1rem;border-radius:var(--um-radius);border:1px solid var(--um-border-soft);background:var(--um-surface)}
+.um-alert > .um-icon{margin-top:2px}
+.um-alert b{display:block;color:var(--um-ink);font-weight:600}
+.um-alert p{font-size:14px}
+.um-alert-success > .um-icon{color:var(--um-success)}
+.um-alert-warning{background:var(--um-warning-bg);border-color:transparent} .um-alert-warning > .um-icon{color:var(--um-warning-ink)}
+.um-alert-danger{background:var(--um-danger-bg);border-color:transparent} .um-alert-danger > .um-icon{color:var(--um-danger-ink)}
+.um-empty{display:flex;flex-direction:column;align-items:center;text-align:center;gap:.6rem;padding:2rem 1.25rem}
+.um-empty-icon{display:grid;place-items:center;width:56px;height:56px;border-radius:50%;background:var(--um-surface-2);color:var(--um-brand)}
+.um-empty-icon .um-icon{width:26px;height:26px}
+.um-empty h3{font-size:1.15rem}
+.um-empty p{font-size:15px;max-width:34ch}
+
+/* ============ SKELETON ============ */
+.um-skel{border-radius:var(--um-radius-sm);background:linear-gradient(90deg,var(--um-skel) 25%,var(--um-skel-hi) 45%,var(--um-skel) 65%);background-size:200% 100%;animation:um-shimmer 1.5s linear infinite}
+@keyframes um-shimmer{to{background-position:-200% 0}}
+
+/* ============ BOTTOM SHEET ============ */
+.um-backdrop{position:fixed;inset:0;z-index:calc(var(--um-z-sheet) - 1);background:var(--um-overlay);opacity:0;pointer-events:none;transition:opacity .25s ease}
+.um-backdrop.is-open{opacity:1;pointer-events:auto}
+.um-sheet{
+  position:fixed;left:0;right:0;bottom:0;z-index:var(--um-z-sheet);
+  max-height:88dvh;overflow:auto;overscroll-behavior:contain;
+  background:var(--um-surface);border:1px solid var(--um-border-soft);border-bottom:0;
+  border-radius:var(--um-radius-lg) var(--um-radius-lg) 0 0;box-shadow:var(--um-shadow-lg);
+  padding:4px var(--um-gutter) calc(1.25rem + env(safe-area-inset-bottom));
+  transform:translateY(105%);transition:transform .4s var(--um-ease-sheet);
+}
+.um-sheet.is-open{transform:translateY(0)}
+.um-sheet-handle{display:flex;align-items:center;justify-content:center;width:100%;height:28px;cursor:grab}
+.um-sheet-handle::before{content:"";width:40px;height:5px;border-radius:999px;background:var(--um-border)}
+@media (min-width:641px){ .um-sheet{left:50%;right:auto;width:min(560px,92vw);translate:-50% 0} }
+
+/* ============ TOAST ============ */
+.um-toasts{position:fixed;left:50%;bottom:calc(var(--um-nav-h) + 16px + env(safe-area-inset-bottom));translate:-50% 0;z-index:var(--um-z-float);display:flex;flex-direction:column;gap:8px;width:min(92vw,420px);pointer-events:none}
+.um-toast{display:flex;align-items:center;gap:.7rem;padding:.75rem .9rem .75rem 1rem;border-radius:var(--um-radius);background:var(--um-ink);color:var(--um-bg);box-shadow:var(--um-shadow-lg);font:500 14px/1.35 var(--um-font);pointer-events:auto}
+.um-toast .um-icon{width:20px;height:20px}
+.um-toast button{margin-left:auto;min-height:var(--um-tap);padding:0 .6rem;font-weight:600;text-decoration:underline;text-underline-offset:3px;color:inherit}
+
+/* ============ MOTION — estado inicial só com motion ligado (sem JS/reduce = visível) ============ */
+@media (prefers-reduced-motion:no-preference){
+  .um-motion [data-um-motion="reveal"],.um-motion [data-um-motion="card-in"],
+  .um-motion [data-um-motion="reveal-group"] > *,.um-motion [data-um-motion="hero"] [data-um-hero-item]{opacity:0}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+}
+/* ============ BREAKPOINTS FIXOS: 1024 / 980 / 900 / 640 / 480 (não criar outros) ============
+   1024 nav → bottom-nav · 980 hero 1 coluna · 900 grids 1 coluna · 640 tabela→cards, inputs 16px · 480 extremo
+   Escreva as media queries do conceito DEPOIS das classes que elas sobrescrevem. */
+/* ==== BASE:FIM ==== */
+
+/* ============ ESTILOS SÓ DA DEMONSTRAÇÃO (apague junto com a demo) ============ */
+.demo-header{position:sticky;top:0;z-index:var(--um-z-header);height:var(--um-header);background:color-mix(in srgb,var(--um-bg) 88%,transparent);backdrop-filter:blur(12px);border-bottom:1px solid var(--um-border-soft)}
+.demo-header .um-container{height:100%;display:flex;align-items:center;justify-content:space-between;gap:1rem}
+.demo-nav{display:flex;gap:.25rem}
+.demo-nav a{display:inline-flex;align-items:center;min-height:var(--um-tap);padding:0 .9rem;border-radius:999px;color:var(--um-ink-soft);text-decoration:none;font-weight:500;font-size:15px}
+.demo-nav a:hover{background:var(--um-surface-2);color:var(--um-ink)}
+.demo-nav a[aria-current="page"]{color:var(--um-brand);font-weight:600}
+.demo-actions{display:flex;align-items:center;gap:.5rem}
+.demo-hero{padding-block:clamp(3rem,10vw,6.5rem) clamp(2.5rem,7vw,4.5rem)}
+.demo-hero p{margin:1.25rem 0 2rem;font-size:1.06rem;max-width:56ch}
+.demo-row{display:flex;flex-wrap:wrap;gap:.75rem;align-items:center}
+.demo-grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:1.25rem}
+.demo-split{display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;align-items:start}
+.demo-stack{display:flex;flex-direction:column;gap:1rem}
+.demo-label{font:600 12px/1 var(--um-font);letter-spacing:.12em;text-transform:uppercase;color:var(--um-ink-muted);min-width:96px}
+.demo-line{display:flex;flex-wrap:wrap;gap:.75rem;align-items:center;padding:1rem 0;border-bottom:1px solid var(--um-border-soft)}
+.demo-line:last-child{border-bottom:0}
+.demo-swatches{display:grid;grid-template-columns:repeat(5,1fr);gap:.75rem}
+.demo-swatch{border-radius:var(--um-radius);padding:1rem;min-height:120px;display:flex;flex-direction:column;justify-content:flex-end;gap:.15rem;font-size:13px;border:1px solid var(--um-border-soft)}
+.demo-swatch b{font:600 15px/1.2 var(--um-display)}
+.demo-pairs{width:100%;border-collapse:collapse;font-size:14px}
+.demo-pairs td,.demo-pairs th{padding:.7rem .5rem;border-bottom:1px solid var(--um-border-soft);text-align:left;vertical-align:middle}
+.demo-pairs th{font:600 12px/1 var(--um-font);letter-spacing:.1em;text-transform:uppercase;color:var(--um-ink-muted)}
+.demo-pair{display:inline-flex;align-items:center;justify-content:center;width:72px;height:36px;border-radius:8px;font:700 15px/1 var(--um-display)}
+.demo-stat{font:700 clamp(2rem,5vw,2.75rem)/1 var(--um-display);color:var(--um-brand)}
+.demo-footer{border-top:1px solid var(--um-border-soft);padding-block:2rem;margin-top:2rem;font-size:13px}
+.demo-footer .um-container{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
+@media (max-width:1024px){ .demo-nav{display:none} }
+@media (max-width:900px){ .demo-grid-3{grid-template-columns:1fr 1fr} .demo-split{grid-template-columns:1fr} .demo-swatches{grid-template-columns:repeat(3,1fr)} }
+@media (max-width:640px){ .demo-grid-3{grid-template-columns:1fr} .demo-swatches{grid-template-columns:1fr 1fr} .demo-hide-sm{display:none} .demo-pairs .demo-hide-sm{display:none} }
+</style>
+</head>
+<body>
+
+<!-- SPRITE:INICIO — ícones (grade 24, traço 1,75) + logo + artes provisórias dos eventos -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <symbol id="um-symbol" viewBox="0 0 64 64">
+      <g fill="none" stroke="currentColor">
+        <path d="M5 21V5h16M43 5h16v16M59 43v16H43" stroke-width="6.5" stroke-linejoin="miter"/>
+        <circle cx="36" cy="28" r="12.5" stroke-width="6.5"/>
+        <path d="M22.5 33.5 9 47M27.5 40 13.5 54M34 43.5 23.5 54" stroke-width="5.5" stroke-linecap="round"/>
+      </g>
+    </symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></symbol>
+    <symbol id="i-locate" viewBox="0 0 24 24"><circle cx="12" cy="12" r="6.5"/><circle cx="12" cy="12" r="1.8" fill="currentColor"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3"/></symbol>
+    <symbol id="i-music" viewBox="0 0 24 24"><path d="M9 18V6l10-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/></symbol>
+    <symbol id="i-festa" viewBox="0 0 24 24"><path d="m11 3 1.9 5.1L18 10l-5.1 1.9L11 17l-1.9-5.1L4 10l5.1-1.9z"/><path d="M18.5 15v5M16 17.5h5"/></symbol>
+    <symbol id="i-feira" viewBox="0 0 24 24"><path d="M3 9.5 5 4.5h14l2 5"/><path d="M3 9.5a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0"/><path d="M5 12.5V20h14v-7.5M10 20v-4.5h4V20"/></symbol>
+    <symbol id="i-expo" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="1.5"/><path d="m3.5 16 5-5 4 4 3-3 5 5"/><circle cx="15.5" cy="9" r="1.5"/></symbol>
+    <symbol id="i-cinema" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="14" rx="2"/><path d="M7.5 5v14M16.5 5v14M3.5 9.7h4M3.5 14.3h4M16.5 9.7h4M16.5 14.3h4"/></symbol>
+    <symbol id="i-ticket" viewBox="0 0 24 24"><path d="M3.5 7.5a1 1 0 0 1 1-1h15a1 1 0 0 1 1 1V10a2 2 0 0 0 0 4v2.5a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1V14a2 2 0 0 0 0-4z"/><path d="M14.5 7v1.6M14.5 11.2v1.6M14.5 15.4V17"/></symbol>
+    <symbol id="i-heart" viewBox="0 0 24 24"><path d="M12 20s-7.5-4.6-7.5-10.1A4.4 4.4 0 0 1 12 7.3a4.4 4.4 0 0 1 7.5 2.6C19.5 15.4 12 20 12 20z"/></symbol>
+    <symbol id="i-share" viewBox="0 0 24 24"><path d="M12 14.5v-11M8 7.5l4-4 4 4"/><path d="M5.5 12.5v6a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2v-6"/></symbol>
+    <symbol id="i-verified" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="m8.5 12.3 2.4 2.4 4.6-5"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
+    <symbol id="i-map" viewBox="0 0 24 24"><path d="M9 4.5 3.5 6.5v13l5.5-2 6 2 5.5-2v-13l-5.5 2z"/><path d="M9 4.5v13M15 6.5v13"/></symbol>
+    <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></symbol>
+    <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="3.7"/><path d="M4.8 20a7.2 7.2 0 0 1 14.4 0"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+    <symbol id="i-chevron-up" viewBox="0 0 24 24"><path d="m6 15 6-6 6 6"/></symbol>
+    <symbol id="i-chevron-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="i-chevron-right" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+    <symbol id="i-arrow-left" viewBox="0 0 24 24"><path d="M19 12H5M11 6l-6 6 6 6"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></symbol>
+    <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6 6 6M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4 6 18M18 6l1.4-1.4"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M19.5 14.5A7.8 7.8 0 0 1 9.5 4.5a7.8 7.8 0 1 0 10 10z"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><path d="M10.3 4.5 2.9 17.5a2 2 0 0 0 1.7 3h14.8a2 2 0 0 0 1.7-3L13.7 4.5a2 2 0 0 0-3.4 0z"/><path d="M12 9.5V14M12 17.2v.1"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5M12 7.8v.1"/></symbol>
+    <symbol id="i-route" viewBox="0 0 24 24"><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="6" r="2.5"/><path d="M8.5 18H15a3 3 0 0 0 0-6H9a3 3 0 0 1 0-6h6.5"/></symbol>
+    <symbol id="i-flag" viewBox="0 0 24 24"><path d="M5.5 21V4.5h11l-2 4 2 4h-11"/></symbol>
+    <symbol id="i-ban" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="m6 6 12 12"/></symbol>
+    <symbol id="i-external" viewBox="0 0 24 24"><path d="M14 4.5h5.5V10M19.5 4.5 11 13"/><path d="M18 14v4.5a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 4 18.5v-11A1.5 1.5 0 0 1 5.5 6H10"/></symbol>
+    <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></symbol>
+    <symbol id="i-layers" viewBox="0 0 24 24"><path d="m12 4 8.5 4.5L12 13 3.5 8.5z"/><path d="m3.5 12.5 8.5 4.5 8.5-4.5M3.5 16.5 12 21l8.5-4.5"/></symbol>
+
+    <!-- ARTES PROVISÓRIAS (16:9) — no app entram as fotos reais do evento (direção fotográfica do PDF) -->
+    <linearGradient id="g-jz-sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0E2629"/><stop offset="1" stop-color="#21403D"/></linearGradient>
+    <radialGradient id="g-jz-glow" cx=".55" cy=".8" r=".55"><stop offset="0" stop-color="#FF9A62" stop-opacity=".55"/><stop offset="1" stop-color="#FF9A62" stop-opacity="0"/></radialGradient>
+    <symbol id="art-jazz" viewBox="0 0 160 90">
+      <rect width="160" height="90" fill="url(#g-jz-sky)"/>
+      <path d="M0 40h8V22l6-9 6 9v18h10v-8l12-7 12 7v8h14V28h22v12h12l9-8 9 8h10V30h30v60H0z" fill="#0B1F21"/>
+      <g fill="#F2C27A" opacity=".85"><rect x="34" y="34" width="3" height="4"/><rect x="41" y="34" width="3" height="4"/><rect x="48" y="34" width="3" height="4"/><rect x="72" y="33" width="3" height="5"/><rect x="80" y="33" width="3" height="5"/><rect x="88" y="33" width="3" height="5"/><rect x="134" y="35" width="3" height="4"/><rect x="142" y="35" width="3" height="4"/><rect x="150" y="35" width="3" height="4"/><rect x="12" y="27" width="2.5" height="5"/></g>
+      <path d="M0 18Q40 36 80 22T160 24" fill="none" stroke="#33504D" stroke-width=".6"/>
+      <g fill="#FFD9A0"><circle cx="8" cy="21.5" r="1.2"/><circle cx="20" cy="25.5" r="1.2"/><circle cx="33" cy="28" r="1.2"/><circle cx="46" cy="28.6" r="1.2"/><circle cx="59" cy="27.2" r="1.2"/><circle cx="72" cy="24.6" r="1.2"/><circle cx="86" cy="21.2" r="1.2"/><circle cx="100" cy="19.6" r="1.2"/><circle cx="114" cy="20" r="1.2"/><circle cx="128" cy="21.6" r="1.2"/><circle cx="142" cy="23.4" r="1.2"/><circle cx="155" cy="24.2" r="1.2"/></g>
+      <rect width="160" height="90" fill="url(#g-jz-glow)"/>
+      <g fill="#14100E"><circle cx="86" cy="49" r="3.4"/><path d="M80 70c0-9 2-15 6-15s6 6 6 15z"/><path d="M90 57l6 9-2 2-6-8z"/><circle cx="104" cy="51" r="3.2"/><path d="M98 72c0-8 2-14 6-14s6 6 6 14z"/></g>
+      <g fill="#061315"><circle cx="10" cy="74" r="5"/><path d="M0 90c0-9 4-12 10-12s10 3 10 12z"/><circle cx="32" cy="76" r="4.6"/><path d="M22 90c0-8 4-11 10-11s10 3 10 11z"/><circle cx="54" cy="73" r="5"/><path d="M44 90c0-9 4-12 10-12s10 3 10 12z"/><circle cx="76" cy="78" r="4.4"/><path d="M66 90c0-7 4-10 10-10s10 3 10 10z"/><circle cx="118" cy="75" r="4.8"/><path d="M108 90c0-8 4-11 10-11s10 3 10 11z"/><circle cx="140" cy="77" r="4.6"/><path d="M130 90c0-8 4-11 10-11s10 3 10 11z"/><circle cx="158" cy="74" r="5"/></g>
+    </symbol>
+
+    <linearGradient id="g-fe-wall" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#D8D2C3"/><stop offset="1" stop-color="#C9C0AE"/></linearGradient>
+    <symbol id="art-feira" viewBox="0 0 160 90">
+      <rect width="160" height="90" fill="url(#g-fe-wall)"/>
+      <g fill="#F5F1E6" opacity=".9"><rect x="12" y="8" width="30" height="26" rx="1"/><rect x="65" y="8" width="30" height="26" rx="1"/><rect x="118" y="8" width="30" height="26" rx="1"/></g>
+      <g stroke="#9C927E" stroke-width=".8"><path d="M27 8v26M12 21h30M80 8v26M65 21h30M133 8v26M118 21h30"/></g>
+      <rect y="58" width="160" height="32" fill="#A79B83"/>
+      <g fill="#6E6F5E"><rect x="6" y="52" width="46" height="16" rx="1.5"/><rect x="58" y="54" width="44" height="14" rx="1.5"/><rect x="108" y="52" width="46" height="16" rx="1.5"/></g>
+      <g fill="#1E1E1E"><circle cx="14" cy="50" r="6"/><circle cx="27" cy="50" r="6"/><circle cx="40" cy="50" r="6"/><circle cx="68" cy="52" r="6"/><circle cx="81" cy="52" r="6"/><circle cx="94" cy="52" r="6"/><circle cx="117" cy="50" r="6"/><circle cx="130" cy="50" r="6"/><circle cx="143" cy="50" r="6"/></g>
+      <g fill="#FF5A3C"><circle cx="14" cy="50" r="1.8"/><circle cx="68" cy="52" r="1.8"/><circle cx="130" cy="50" r="1.8"/></g>
+      <g fill="#EDECE7"><circle cx="27" cy="50" r="1.8"/><circle cx="94" cy="52" r="1.8"/><circle cx="143" cy="50" r="1.8"/></g>
+      <g fill="#0B3C3F"><circle cx="40" cy="50" r="1.8"/><circle cx="81" cy="52" r="1.8"/><circle cx="117" cy="50" r="1.8"/></g>
+      <g fill="#2D2E27"><circle cx="54" cy="44" r="4"/><path d="M47 90V58c0-6 3-9 7-9s7 3 7 9v32z"/><circle cx="104" cy="42" r="4.2"/><path d="M97 90V57c0-6 3-9 7-9s7 3 7 9v33z"/></g>
+    </symbol>
+
+    <linearGradient id="g-fs-bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#150E13"/><stop offset="1" stop-color="#2B1420"/></linearGradient>
+    <symbol id="art-festa" viewBox="0 0 160 90">
+      <rect width="160" height="90" fill="url(#g-fs-bg)"/>
+      <path d="M40 0 10 90h40z" fill="#FF5A3C" opacity=".28"/><path d="M80 0 62 90h40z" fill="#3FA7A0" opacity=".22"/><path d="M122 0 108 90h44z" fill="#FF5A3C" opacity=".22"/><path d="M60 0 90 90h26z" fill="#EDECE7" opacity=".07"/>
+      <g fill="#FFE2CC"><circle cx="40" cy="2" r="2.2"/><circle cx="80" cy="2" r="2.2"/><circle cx="122" cy="2" r="2.2"/></g>
+      <g fill="#FFFFFF" opacity=".5"><circle cx="20" cy="30" r=".7"/><circle cx="55" cy="22" r=".6"/><circle cx="98" cy="35" r=".7"/><circle cx="140" cy="18" r=".6"/><circle cx="118" cy="44" r=".5"/><circle cx="70" cy="40" r=".5"/></g>
+      <g fill="#07050A"><circle cx="12" cy="66" r="5"/><path d="M0 90c0-10 5-15 12-15s12 5 12 15z"/><path d="M18 64l4-16 3 1-3 16z"/><circle cx="38" cy="70" r="4.6"/><path d="M26 90c0-9 5-13 12-13s12 4 12 13z"/><circle cx="62" cy="64" r="5"/><path d="M50 90c0-10 5-15 12-15s12 5 12 15z"/><path d="M56 62l-5-15 3-1 5 15zM68 62l5-15 3 1-5 15z"/><circle cx="88" cy="69" r="4.6"/><path d="M76 90c0-9 5-13 12-13s12 4 12 13z"/><circle cx="112" cy="65" r="5"/><path d="M100 90c0-10 5-15 12-15s12 5 12 15z"/><path d="M118 63l4-15 3 1-4 15z"/><circle cx="138" cy="70" r="4.6"/><path d="M126 90c0-9 5-13 12-13s12 4 12 13z"/><circle cx="158" cy="66" r="5"/></g>
+    </symbol>
+
+    <radialGradient id="g-ex-spot" cx=".5" cy="0" r=".9"><stop offset="0" stop-color="#FFFFFF" stop-opacity=".75"/><stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/></radialGradient>
+    <symbol id="art-expo" viewBox="0 0 160 90">
+      <rect width="160" height="90" fill="#E7E4DC"/>
+      <path d="M0 66h160v24H0z" fill="#CFC9BB"/><path d="M0 66h160" stroke="#BDB6A6" stroke-width=".8"/>
+      <ellipse cx="80" cy="10" rx="40" ry="40" fill="url(#g-ex-spot)"/><ellipse cx="28" cy="14" rx="20" ry="30" fill="url(#g-ex-spot)"/><ellipse cx="134" cy="14" rx="20" ry="30" fill="url(#g-ex-spot)"/>
+      <rect x="56" y="16" width="48" height="36" fill="#F4F2EC" stroke="#2A2A2A" stroke-width="1.6"/>
+      <rect x="60" y="20" width="40" height="28" fill="#0B3C3F"/><circle cx="88" cy="30" r="7" fill="#FF5A3C"/><path d="M60 40c10-6 22-6 40 2v6H60z" fill="#6E6F5E"/>
+      <rect x="16" y="22" width="22" height="28" fill="#F4F2EC" stroke="#2A2A2A" stroke-width="1.4"/><path d="M20 28h14M20 33h10M20 38h14M20 43h8" stroke="#282828" stroke-width="1.2"/>
+      <rect x="122" y="22" width="24" height="28" fill="#F4F2EC" stroke="#2A2A2A" stroke-width="1.4"/><path d="M126 46a8 8 0 0 1 16 0" fill="none" stroke="#0B3C3F" stroke-width="3"/>
+      <g fill="#2A2A2A"><circle cx="118" cy="52" r="3.6"/><path d="M112 90V64c0-5 2.6-8 6-8s6 3 6 8v26z"/></g>
+      <g fill="#3E3E3A"><circle cx="40" cy="55" r="3.2"/><path d="M35 90V66c0-5 2.2-7 5-7s5 2 5 7v24z"/></g>
+    </symbol>
+
+    <linearGradient id="g-op-sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7FA2A2"/><stop offset=".55" stop-color="#EFC6A2"/><stop offset="1" stop-color="#F6AE86"/></linearGradient>
+    <symbol id="art-opera" viewBox="0 0 160 90">
+      <rect width="160" height="90" fill="url(#g-op-sky)"/>
+      <rect y="62" width="160" height="28" fill="#30585A"/>
+      <g stroke="#F6E7D6" stroke-width=".5" opacity=".5"><path d="M20 70h30M70 74h40M120 70h24M40 80h50M100 84h40"/></g>
+      <g fill="none" stroke="#F4F1EA" stroke-width=".9"><path d="M46 62Q80 18 114 62"/><path d="M54 62Q80 28 106 62"/><path d="M62 62Q80 38 98 62"/></g>
+      <g stroke="#F4F1EA" stroke-width=".6"><path d="M80 40v22M70 45v17M90 45v17M61 52v10M99 52v10"/></g>
+      <path d="M44 62h72" stroke="#F4F1EA" stroke-width="1.2"/>
+      <g fill="#1B3433">
+        <path d="M18 62V28h1.6v34z"/><path d="M8 30q10-6 22 0-11-2-22 0zM9 26q9-5 20 0-10-2-20 0zM11 22q8-4 16 0-8-2-16 0z"/>
+        <path d="M138 62V22h1.8v40z"/><path d="M126 24q13-7 26 0-13-2-26 0zM127 20q12-6 24 0-12-2-24 0zM130 16q9-4 18 0-9-2-18 0z"/>
+        <path d="M152 62V34h1.4v28z"/><path d="M145 36q8-4 16 0-8-1.5-16 0z"/>
+        <path d="M0 62c10-6 20-8 34-4 10-6 22-5 30 4zM100 62c12-7 26-8 40-3 8-4 16-3 20 3z"/>
+      </g>
+    </symbol>
+
+    <linearGradient id="g-ci-scr" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#DCE8E4"/><stop offset="1" stop-color="#98B4AF"/></linearGradient>
+    <radialGradient id="g-ci-glow" cx=".5" cy=".3" r=".7"><stop offset="0" stop-color="#BFD6D3" stop-opacity=".35"/><stop offset="1" stop-color="#BFD6D3" stop-opacity="0"/></radialGradient>
+    <symbol id="art-cinema" viewBox="0 0 160 90">
+      <rect width="160" height="90" fill="#0C1315"/>
+      <rect width="160" height="90" fill="url(#g-ci-glow)"/>
+      <rect x="28" y="9" width="104" height="44" rx="1" fill="url(#g-ci-scr)"/>
+      <path d="M28 40c18-7 34-9 52-5s34 2 52-4v22H28z" fill="#6E8F8A"/><circle cx="104" cy="23" r="5" fill="#F6EFE2"/>
+      <g fill="#05090A"><rect x="0" y="64" width="160" height="26"/><circle cx="20" cy="62" r="4.4"/><circle cx="44" cy="63" r="4.2"/><circle cx="70" cy="61" r="4.5"/><circle cx="96" cy="63" r="4.2"/><circle cx="122" cy="62" r="4.4"/><circle cx="146" cy="63" r="4.2"/></g>
+      <g fill="#111A1C"><rect x="4" y="72" width="34" height="8" rx="3"/><rect x="44" y="72" width="34" height="8" rx="3"/><rect x="84" y="72" width="34" height="8" rx="3"/><rect x="124" y="72" width="34" height="8" rx="3"/></g>
+    </symbol>
+
+    <!-- MAPA ILUSTRATIVO DE CURITIBA (1200×1000; Centro ≈ 600,420). Só conceito: no app são tiles reais (Leaflet) -->
+    <pattern id="g-grid-a" width="36" height="36" patternUnits="userSpaceOnUse" patternTransform="rotate(9 600 420)"><path class="g-street" d="M0 0H36M0 0V36"/></pattern>
+    <pattern id="g-grid-b" width="30" height="30" patternUnits="userSpaceOnUse" patternTransform="rotate(-27 600 420)"><path class="g-street" d="M0 0H30M0 0V30"/></pattern>
+    <pattern id="g-grid-c" width="42" height="28" patternUnits="userSpaceOnUse" patternTransform="rotate(4 600 420)"><path class="g-street" d="M0 0H42M0 0V28"/></pattern>
+    <pattern id="g-grid-d" width="34" height="40" patternUnits="userSpaceOnUse" patternTransform="rotate(31 600 420)"><path class="g-street" d="M0 0H34M0 0V40"/></pattern>
+    <g id="g-roads-major">
+      <path class="g-rd" d="M600 0C598 120 596 220 602 330L606 420"/>
+      <path class="g-rd" d="M606 420C590 520 540 600 500 700S430 900 410 1000"/>
+      <path class="g-rd" d="M606 420C540 440 470 470 380 490S180 520 0 540"/>
+      <path class="g-rd" d="M606 420C680 420 780 410 880 430S1080 460 1200 470"/>
+      <path class="g-rd" d="M965 0C950 200 985 330 1000 470S990 700 1060 1000"/>
+    </g>
+    <g id="g-roads-minor">
+      <path class="g-rd" d="M612 432C650 520 700 600 760 700S830 880 870 1000"/>
+      <path class="g-rd" d="M560 402C500 382 420 360 330 330S120 280 0 262"/>
+      <path class="g-rd" d="M592 404C574 364 562 330 556 280S540 150 520 0"/>
+      <path class="g-rd" d="M300 600C450 562 560 536 650 520S900 482 1200 452"/>
+      <path class="g-rd" d="M0 760C200 740 400 730 560 700S900 640 1200 620"/>
+      <path class="g-rd" d="M640 410C720 360 800 300 880 230S1050 100 1120 0"/>
+      <path class="g-rd" d="M0 400C120 410 230 420 330 440S430 462 470 470"/>
+      <path class="g-rd" d="M760 700C730 800 705 900 700 1000"/>
+      <path class="g-rd" d="M400 0C420 120 440 200 470 300"/>
+      <path class="g-rd" d="M1200 250C1100 300 1040 330 985 360"/>
+    </g>
+    <symbol id="map-geo" viewBox="0 0 1200 1000">
+      <rect class="g-land" width="1200" height="1000"/>
+      <rect width="1200" height="1000" fill="url(#g-grid-a)"/>
+      <path class="g-land" d="M470 300Q560 268 690 278Q745 360 740 470Q640 520 540 515Q478 430 470 300Z"/>
+      <path d="M470 300Q560 268 690 278Q745 360 740 470Q640 520 540 515Q478 430 470 300Z" fill="url(#g-grid-b)"/>
+      <path class="g-land" d="M330 470Q440 455 545 515Q590 600 580 700Q450 720 330 690Q300 580 330 470Z"/>
+      <path d="M330 470Q440 455 545 515Q590 600 580 700Q450 720 330 690Q300 580 330 470Z" fill="url(#g-grid-c)"/>
+      <path class="g-land" d="M600 515Q700 500 760 475Q830 560 820 680Q720 700 610 690Q585 600 600 515Z"/>
+      <path d="M600 515Q700 500 760 475Q830 560 820 680Q720 700 610 690Q585 600 600 515Z" fill="url(#g-grid-d)"/>
+      <g class="g-park">
+        <path d="M632 380Q655 370 680 382Q684 398 664 408Q640 410 630 398Z"/>
+        <path d="M600 190Q640 170 690 190Q700 230 670 250Q625 258 605 235Z"/>
+        <path d="M548 274Q585 260 628 278Q634 314 602 324Q560 326 546 300Z"/>
+        <path d="M455 240Q480 232 500 246Q498 268 476 272Q456 266 455 240Z"/>
+        <path d="M452 548 490 540 496 566 458 574Z"/>
+        <path d="M770 515Q820 500 865 520Q872 565 835 585Q785 590 768 560Z"/>
+        <path d="M120 300Q190 280 220 340Q235 450 210 560Q160 600 120 560Q95 430 120 300Z"/>
+        <path d="M512 352h16v12h-16zM690 596h20v15h-20zM424 398h17v13h-17zM752 326h20v14h-20zM552 622h18v13h-18zM860 380h18v14h-18zM360 600h20v14h-20z"/>
+      </g>
+      <g class="g-water">
+        <ellipse cx="648" cy="214" rx="22" ry="11"/><ellipse cx="590" cy="304" rx="16" ry="8"/>
+        <path d="M150 380Q180 370 188 420Q190 480 165 500Q145 470 150 380Z"/>
+      </g>
+      <path class="g-river" d="M640 100C660 180 628 250 650 320S690 400 668 460S702 560 690 640S742 780 730 1000"/>
+      <path class="g-river" d="M150 0C172 150 140 300 168 420S150 700 190 1000"/>
+      <use href="#g-roads-minor" class="g-casing-minor"/>
+      <use href="#g-roads-minor" class="g-road-minor"/>
+      <use href="#g-roads-major" class="g-casing-major"/>
+      <use href="#g-roads-major" class="g-road-major"/>
+    </symbol>
+  </defs>
+</svg>
+<!-- SPRITE:FIM -->
+
+<!-- DEMO-INICIO ─ demonstração da identidade; apague este bloco inteiro ao criar um conceito -->
+<header class="demo-header">
+  <div class="um-container">
+    <a class="um-logo" href="#" aria-label="UMURA — início"><svg aria-hidden="true"><use href="#um-symbol"/></svg><b>UMURA</b></a>
+    <nav class="demo-nav" aria-label="Principal"><a href="#" aria-current="page">Mapa</a><a href="#">Eventos</a><a href="#">Favoritos</a></nav>
+    <div class="demo-actions">
+      <button class="um-btn um-btn-ghost um-btn-icon" type="button" data-um-tema-toggle aria-label="Usar tema escuro"><svg class="um-icon" aria-hidden="true"><use href="#i-moon"/></svg></button>
+      <a class="um-btn um-btn-outline demo-hide-sm" href="#">Sou produtor</a>
+    </div>
+  </div>
+</header>
+
+<main>
+<section class="demo-hero" data-um-motion="hero">
+  <div class="um-container">
+    <div class="um-eyebrow" data-um-hero-item="eyebrow">Um mapa vivo de Curitiba</div>
+    <h1 class="um-display" data-um-hero-item="display" style="margin-top:1rem">Template de<br>conceito</h1>
+    <p data-um-hero-item="sub">Tokens <code>--um-*</code>, componentes e regras da identidade UMURA prontos. Apague a demo, construa o conceito por cima — 390px primeiro — e apresente pra aprovação.</p>
+    <div class="demo-row" data-um-hero-item="cta">
+      <a class="um-btn um-btn-primary" href="#"><svg class="um-icon" aria-hidden="true"><use href="#i-map"/></svg>Ver o mapa</a>
+      <a class="um-btn um-btn-outline" href="#">Ver referências</a>
+      <a class="um-btn um-btn-ghost" href="#">Saber mais</a>
+    </div>
+    <p class="um-meta" data-um-hero-item="trust" style="margin-top:1.25rem"><span class="demo-stat tnum" data-um-motion="counter" data-um-to="128">128</span>&nbsp; eventos marcados esta semana em Curitiba</p>
+  </div>
+</section>
+
+<section class="um-section" style="padding-top:0">
+  <div class="um-container">
+    <div class="um-sec-head"><div class="um-eyebrow">Paleta</div><h2>Cor com função</h2><p class="um-sec-sub">Claro = 40% Off White · 22% Deep Green · 18% Premium Grey · 12% Worker Green · 8% Coral. O escuro inverte o fundo para Deep Green.</p></div>
+    <div class="demo-swatches">
+      <div class="demo-swatch" style="background:#0B3C3F;color:#EDECE7"><b>Deep Green</b>#0B3C3F · marca, CTA</div>
+      <div class="demo-swatch" style="background:#6E6F5E;color:#EDECE7"><b>Worker Green</b>#6E6F5E · rótulo</div>
+      <div class="demo-swatch" style="background:#282828;color:#EDECE7"><b>Premium Grey</b>#282828 · texto</div>
+      <div class="demo-swatch" style="background:#EDECE7;color:#282828"><b>Off White</b>#EDECE7 · fundo</div>
+      <div class="demo-swatch" style="background:#FF5A3C;color:#282828"><b>Coral</b>#FF5A3C · agora/ação</div>
+    </div>
+    <table class="demo-pairs" style="margin-top:1.25rem">
+      <thead><tr><th>Par</th><th>Contraste</th><th class="demo-hide-sm">Uso</th></tr></thead>
+      <tbody>
+        <tr><td><span class="demo-pair" style="background:#0B3C3F;color:#EDECE7">Aa</span></td><td class="tnum"><b>10,25:1</b> ✓</td><td class="demo-hide-sm">Off White / Deep Green — leitura do escuro, CTA primário</td></tr>
+        <tr><td><span class="demo-pair" style="background:#EDECE7;color:#282828;box-shadow:inset 0 0 0 1px #D3D1C8">Aa</span></td><td class="tnum"><b>12,46:1</b> ✓</td><td class="demo-hide-sm">Premium Grey / Off White — texto principal</td></tr>
+        <tr><td><span class="demo-pair" style="background:#FF5A3C;color:#282828">Aa</span></td><td class="tnum"><b>4,76:1</b> ✓</td><td class="demo-hide-sm">Premium Grey / Coral — só botão "Ver ingresso" e pino selecionado</td></tr>
+        <tr><td><span class="demo-pair" style="background:#EDECE7;color:#6E6F5E;box-shadow:inset 0 0 0 1px #D3D1C8">Aa</span></td><td class="tnum"><b>4,33:1</b> ~</td><td class="demo-hide-sm">Worker Green / Off White — só rótulo ≥14px/600, nunca parágrafo</td></tr>
+        <tr><td><span class="demo-pair" style="background:#EDECE7;color:#FF5A3C;box-shadow:inset 0 0 0 1px #D3D1C8">Aa</span></td><td class="tnum"><b>2,62:1</b> ✗</td><td class="demo-hide-sm">Coral / Off White — NUNCA texto; só pino, traço ≥3px, ponto</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="um-section" style="padding-top:0">
+  <div class="um-container">
+    <div class="um-sec-head"><div class="um-eyebrow">Componentes</div><h2>Ações, filtros e estados</h2><p class="um-sec-sub">Botão é pílula; coral só no CTA do evento. Chips usam <code>aria-pressed</code>; status sempre cor + ícone + texto.</p></div>
+    <div class="um-card um-card-lg">
+      <div class="demo-line"><span class="demo-label">Botões</span>
+        <button class="um-btn um-btn-primary" type="button">Ver evento</button>
+        <button class="um-btn um-btn-accent" type="button"><svg class="um-icon" aria-hidden="true"><use href="#i-ticket"/></svg>Ver ingresso</button>
+        <button class="um-btn um-btn-outline" type="button"><svg class="um-icon" aria-hidden="true"><use href="#i-route"/></svg>Como chegar</button>
+        <button class="um-btn um-btn-ghost" type="button">Informar alteração</button>
+        <button class="um-btn um-btn-primary" type="button" disabled>Desabilitado</button>
+      </div>
+      <div class="demo-line"><span class="demo-label">Ícone</span>
+        <button class="um-btn um-btn-outline um-btn-icon" type="button" aria-pressed="false" aria-label="Salvar nos favoritos" data-um-fav><svg class="um-icon" aria-hidden="true"><use href="#i-heart"/></svg></button>
+        <button class="um-btn um-btn-outline um-btn-icon" type="button" aria-pressed="true" aria-label="Remover dos favoritos" data-um-fav><svg class="um-icon" aria-hidden="true"><use href="#i-heart"/></svg></button>
+        <button class="um-btn um-btn-outline um-btn-icon" type="button" aria-label="Compartilhar"><svg class="um-icon" aria-hidden="true"><use href="#i-share"/></svg></button>
+        <button class="um-btn um-btn-outline" type="button"><svg class="um-icon" aria-hidden="true"><use href="#i-locate"/></svg>Perto de mim</button>
+      </div>
+      <div class="demo-line"><span class="demo-label">Chips</span>
+        <div class="um-chips" role="group" aria-label="Filtros">
+          <button class="um-chip" type="button" aria-pressed="true" data-um-chip><span class="um-dot-now" aria-hidden="true"></span>Hoje</button>
+          <button class="um-chip" type="button" aria-pressed="false" data-um-chip>Fim de semana</button>
+          <button class="um-chip" type="button" aria-pressed="false" data-um-chip><svg class="um-icon" aria-hidden="true"><use href="#i-music"/></svg>Shows</button>
+          <button class="um-chip" type="button" aria-pressed="false" data-um-chip><svg class="um-icon" aria-hidden="true"><use href="#i-festa"/></svg>Festas</button>
+          <button class="um-chip" type="button" aria-pressed="false" data-um-chip><svg class="um-icon" aria-hidden="true"><use href="#i-feira"/></svg>Feiras</button>
+          <button class="um-chip" type="button" aria-pressed="false" data-um-chip><svg class="um-icon" aria-hidden="true"><use href="#i-expo"/></svg>Exposições</button>
+          <button class="um-chip" type="button" aria-pressed="false" data-um-chip>Gratuito</button>
+        </div>
+      </div>
+      <div class="demo-line"><span class="demo-label">Badges</span>
+        <span class="um-badge um-badge-now"><span class="um-dot-now" aria-hidden="true"></span>Hoje</span>
+        <span class="um-badge um-badge-free">Gratuito</span>
+        <span class="um-badge um-badge-success"><svg class="um-icon" aria-hidden="true"><use href="#i-verified"/></svg>Verificado</span>
+        <span class="um-badge um-badge-warning"><svg class="um-icon" aria-hidden="true"><use href="#i-clock"/></svg>Horário alterado</span>
+        <span class="um-badge um-badge-danger"><svg class="um-icon" aria-hidden="true"><use href="#i-ban"/></svg>Cancelado</span>
+        <span class="um-badge um-badge-info"><svg class="um-icon" aria-hidden="true"><use href="#i-info"/></svg>Novo</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="um-section" style="padding-top:0">
+  <div class="um-container">
+    <div class="um-sec-head"><div class="um-eyebrow">Vitrine</div><h2>Card de evento</h2><p class="um-sec-sub">Imagem 16:9 em poço, momento, título, lugar e estado — decisão em 2 segundos.</p></div>
+    <div class="demo-grid-3" data-um-motion="reveal-group">
+      <article class="um-evento">
+        <div class="um-media"><svg viewBox="0 0 160 90" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Show de jazz à noite no Largo da Ordem"><use href="#art-jazz"/></svg><span class="um-tag"><svg class="um-icon" aria-hidden="true"><use href="#i-music"/></svg>Shows</span></div>
+        <button class="um-btn um-btn-icon um-evento-fav" type="button" aria-pressed="false" aria-label="Salvar Jazz no Largo" data-um-fav><svg class="um-icon" aria-hidden="true"><use href="#i-heart"/></svg></button>
+        <div class="um-evento-body">
+          <p class="um-when tnum"><span class="um-dot-now" aria-hidden="true"></span>Hoje · 20:30</p>
+          <h3 class="um-evento-title"><a href="conceitos/evento.html">Jazz no Largo</a></h3>
+          <p class="um-where"><svg class="um-icon" aria-hidden="true"><use href="#i-pin"/></svg>Largo da Ordem · São Francisco</p>
+          <div class="um-evento-foot"><span class="um-badge um-badge-free">Gratuito</span><span class="um-badge um-badge-success"><svg class="um-icon" aria-hidden="true"><use href="#i-verified"/></svg>Verificado</span></div>
+        </div>
+      </article>
+      <article class="um-evento">
+        <div class="um-media"><svg viewBox="0 0 160 90" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Galeria com quadros e visitantes"><use href="#art-expo"/></svg><span class="um-tag"><svg class="um-icon" aria-hidden="true"><use href="#i-expo"/></svg>Exposições</span></div>
+        <button class="um-btn um-btn-icon um-evento-fav" type="button" aria-pressed="false" aria-label="Salvar Corpo Cidade" data-um-fav><svg class="um-icon" aria-hidden="true"><use href="#i-heart"/></svg></button>
+        <div class="um-evento-body">
+          <p class="um-when tnum"><span class="um-dot-now" aria-hidden="true"></span>Hoje · 19:00</p>
+          <h3 class="um-evento-title"><a href="#">Corpo Cidade — mostra coletiva</a></h3>
+          <p class="um-where"><svg class="um-icon" aria-hidden="true"><use href="#i-pin"/></svg>Galeria Alameda · Batel</p>
+          <div class="um-evento-foot"><span class="um-badge um-badge-free">Gratuito</span></div>
+        </div>
+      </article>
+      <article class="um-evento">
+        <div class="um-media"><svg viewBox="0 0 160 90" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Ópera de Arame ao entardecer"><use href="#art-opera"/></svg><span class="um-tag"><svg class="um-icon" aria-hidden="true"><use href="#i-music"/></svg>Shows</span></div>
+        <button class="um-btn um-btn-icon um-evento-fav" type="button" aria-pressed="false" aria-label="Salvar Orquestra na Pedreira" data-um-fav><svg class="um-icon" aria-hidden="true"><use href="#i-heart"/></svg></button>
+        <div class="um-evento-body">
+          <p class="um-when tnum">Sáb, 24 out · 19:30</p>
+          <h3 class="um-evento-title"><a href="#">Sinfonia das Araucárias</a></h3>
+          <p class="um-where"><svg class="um-icon" aria-hidden="true"><use href="#i-pin"/></svg>Ópera de Arame · Abranches</p>
+          <div class="um-evento-foot"><span class="um-price tnum">R$ 40 – 90</span><span class="um-badge um-badge-warning"><svg class="um-icon" aria-hidden="true"><use href="#i-clock"/></svg>Horário alterado</span></div>
+        </div>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section class="um-section" style="padding-top:0">
+  <div class="um-container demo-split">
+    <div>
+      <div class="um-sec-head"><div class="um-eyebrow">Formulário</div><h2>Campos</h2><p class="um-sec-sub">Rótulo sempre acima, 16px no mobile, erro que explica a correção.</p></div>
+      <div class="um-card um-card-lg" data-um-motion="card-in" style="padding:1.5rem">
+        <div class="um-field">
+          <label class="um-label" for="d1">Buscar programação</label>
+          <div class="um-input-wrap"><svg class="um-icon" aria-hidden="true"><use href="#i-search"/></svg><input class="um-input" id="d1" type="search" placeholder="Evento, lugar ou bairro"></div>
+          <div class="um-hint">Ex.: "jazz", "Largo da Ordem", "Rebouças".</div>
+        </div>
+        <div class="um-field">
+          <label class="um-label" for="d2">Link do evento</label>
+          <input class="um-input" id="d2" type="url" placeholder="https://www.sympla.com.br/…" inputmode="url">
+        </div>
+        <div class="um-field is-error">
+          <label class="um-label" for="d3">E-mail do produtor</label>
+          <input class="um-input" id="d3" type="email" value="coletivo@" aria-invalid="true" aria-describedby="d3-erro">
+          <div class="um-error-msg" id="d3-erro"><svg class="um-icon" aria-hidden="true"><use href="#i-alert"/></svg>Digite o e-mail completo, ex.: nome@dominio.com</div>
+        </div>
+        <button class="um-btn um-btn-primary um-btn-block" type="button">Continuar</button>
+      </div>
+    </div>
+    <div>
+      <div class="um-sec-head"><div class="um-eyebrow">Feedback</div><h2>Estados</h2><p class="um-sec-sub">Carregando, vazio, alerta, toast e bottom sheet.</p></div>
+      <div class="demo-stack">
+        <div class="um-card" aria-label="Carregando eventos" style="display:grid;grid-template-columns:128px 1fr;gap:.85rem;padding:.75rem">
+          <div class="um-skel" style="aspect-ratio:16/9"></div>
+          <div style="display:flex;flex-direction:column;gap:.5rem;padding-top:.2rem"><div class="um-skel" style="height:12px;width:40%"></div><div class="um-skel" style="height:16px;width:85%"></div><div class="um-skel" style="height:12px;width:60%"></div></div>
+        </div>
+        <div class="um-alert um-alert-warning"><svg class="um-icon" aria-hidden="true"><use href="#i-clock"/></svg><div><b>Horário alterado</b><p>O produtor mudou o início para 21:00 (atualizado hoje às 14:30).</p></div></div>
+        <div class="um-alert um-alert-danger"><svg class="um-icon" aria-hidden="true"><use href="#i-ban"/></svg><div><b>Evento cancelado</b><p>Confirmado pela organização. Quem comprou recebe o reembolso pela bilheteria.</p></div></div>
+        <div class="um-card um-empty"><span class="um-empty-icon"><svg class="um-icon" aria-hidden="true"><use href="#i-search"/></svg></span><h3>Nenhum evento apareceu</h3><p>Tente ampliar a data, a distância ou as categorias.</p><button class="um-btn um-btn-outline" type="button">Limpar filtros</button></div>
+        <div class="demo-row">
+          <button class="um-btn um-btn-outline" type="button" data-demo-toast>Mostrar toast</button>
+          <button class="um-btn um-btn-outline" type="button" data-demo-sheet aria-haspopup="dialog" aria-controls="demo-sheet">Abrir bottom sheet</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+</main>
+
+<div class="um-backdrop" data-demo-backdrop></div>
+<div class="um-sheet" id="demo-sheet" role="dialog" aria-modal="true" aria-labelledby="demo-sheet-t" hidden>
+  <button class="um-sheet-handle" type="button" aria-label="Fechar" data-demo-close></button>
+  <h2 id="demo-sheet-t" style="font-size:1.3rem;margin-bottom:.25rem">Filtros</h2>
+  <p class="um-hint" style="margin-bottom:1rem">No mobile, menus e filtros viram bottom sheet (400ms, curva iOS).</p>
+  <div class="um-chips" style="margin-bottom:1.25rem">
+    <button class="um-chip" type="button" aria-pressed="true" data-um-chip><span class="um-dot-now" aria-hidden="true"></span>Hoje</button>
+    <button class="um-chip" type="button" aria-pressed="false" data-um-chip>Fim de semana</button>
+    <button class="um-chip" type="button" aria-pressed="false" data-um-chip>Gratuito</button>
+  </div>
+  <button class="um-btn um-btn-primary um-btn-block" type="button" data-demo-close>Ver 18 eventos</button>
+</div>
+<div class="um-toasts" aria-live="polite" data-um-toasts></div>
+
+<footer class="demo-footer">
+  <div class="um-container"><span>UMURA — template de conceito</span><span>--um-* · seção 2 do PLANO_UMURA.md</span></div>
+</footer>
+
+<script>
+/* demo: sheet + toast */
+(function () {
+  var sheet = document.getElementById("demo-sheet"), bd = document.querySelector("[data-demo-backdrop]"), opener = null;
+  function open(e) { opener = e.currentTarget; sheet.hidden = false; requestAnimationFrame(function () { sheet.classList.add("is-open"); bd.classList.add("is-open"); sheet.querySelector("[data-demo-close]").focus(); }); }
+  function close() { sheet.classList.remove("is-open"); bd.classList.remove("is-open"); setTimeout(function () { sheet.hidden = true; }, 300); if (opener) opener.focus(); }
+  document.querySelector("[data-demo-sheet]").addEventListener("click", open);
+  sheet.querySelectorAll("[data-demo-close]").forEach(function (b) { b.addEventListener("click", close); });
+  bd.addEventListener("click", close);
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !sheet.hidden) close(); });
+  document.querySelector("[data-demo-toast]").addEventListener("click", function () { umToast("Evento salvo nos favoritos", "Desfazer"); });
+})();
+</script>
+<!-- DEMO-FIM -->
+
+<!-- CONCEITO-AQUI ─ construa o conceito a partir deste ponto -->
+
+<script>
+/* ==== MOTION:INICIO ==== */
+/* umura-motion (inline no conceito; no app vira wwwroot/js/umura-motion.js, cópia do mypods-motion.js com data-um-*)
+   data-um-motion="hero" + filhos [data-um-hero-item="eyebrow|display|sub|cta|trust|media"]
+   data-um-motion="reveal" [data-um-y] · "reveal-group" (filhos diretos) · "card-in" · "counter" [data-um-to/-from/-prefix/-suffix/-decimals] */
+(function () {
+  "use strict";
+  var root = document.documentElement;
+  var reduce = window.matchMedia("(prefers-reduced-motion: reduce)");
+  var gsap = window.gsap, hasST = !!window.ScrollTrigger;
+  var on = !!gsap && root.classList.contains("um-motion") && !reduce.matches;
+  if (gsap && hasST) gsap.registerPlugin(window.ScrollTrigger);
+
+  var presets = {
+    hero: function (el) {
+      var items = el.querySelectorAll("[data-um-hero-item]");
+      var tl = gsap.timeline({ defaults: { ease: "power3.out" } });
+      items.forEach(function (item, i) {
+        var k = item.getAttribute("data-um-hero-item");
+        if (k === "display") tl.fromTo(item, { autoAlpha: 0, y: 28, filter: "blur(6px)" }, { autoAlpha: 1, y: 0, filter: "blur(0px)", duration: 0.7, clearProps: "filter" }, i ? "-=0.15" : 0);
+        else if (k === "cta") tl.fromTo(item, { autoAlpha: 0, y: 16 }, { autoAlpha: 1, y: 0, duration: 0.45, ease: "back.out(1.4)" }, "-=0.25");
+        else if (k === "media") tl.fromTo(item, { autoAlpha: 0, scale: 0.96 }, { autoAlpha: 1, scale: 1, duration: 0.8 }, "<");
+        else tl.fromTo(item, { autoAlpha: 0, y: 12 }, { autoAlpha: 1, y: 0, duration: k === "eyebrow" ? 0.4 : 0.5 }, i ? "-=0.3" : 0);
+      });
+    },
+    reveal: function (el) {
+      var y = parseFloat(el.getAttribute("data-um-y") || "24");
+      var vars = { autoAlpha: 1, y: 0, duration: 0.6, ease: "power2.out", overwrite: "auto" };
+      gsap.set(el, { autoAlpha: 0, y: y });
+      if (hasST) vars.scrollTrigger = { trigger: el, start: "top 88%", once: true };
+      gsap.to(el, vars);
+    },
+    "reveal-group": function (el) {
+      var kids = Array.prototype.slice.call(el.children);
+      if (!kids.length) return;
+      gsap.set(kids, { autoAlpha: 0, y: 24 });
+      if (hasST) window.ScrollTrigger.batch(kids, { start: "top 88%", once: true, onEnter: function (b) { gsap.to(b, { autoAlpha: 1, y: 0, duration: 0.6, ease: "power2.out", stagger: 0.1, overwrite: true }); } });
+      else gsap.to(kids, { autoAlpha: 1, y: 0, duration: 0.6, ease: "power2.out", stagger: 0.1 });
+    },
+    "card-in": function (el) { gsap.fromTo(el, { autoAlpha: 0, y: 12 }, { autoAlpha: 1, y: 0, duration: 0.35, ease: "power2.out" }); },
+    counter: function (el) {
+      var to = parseFloat(el.getAttribute("data-um-to") || "0"), from = parseFloat(el.getAttribute("data-um-from") || "0");
+      var dec = parseInt(el.getAttribute("data-um-decimals") || "0", 10), pre = el.getAttribute("data-um-prefix") || "", suf = el.getAttribute("data-um-suffix") || "";
+      var o = { v: from }, render = function () { el.textContent = pre + o.v.toLocaleString("pt-BR", { minimumFractionDigits: dec, maximumFractionDigits: dec }) + suf; };
+      var run = function () { render(); gsap.to(o, { v: to, duration: 1.1, ease: "power1.out", onUpdate: render, onComplete: render }); };
+      if (hasST) window.ScrollTrigger.create({ trigger: el, start: "top 92%", once: true, onEnter: run }); else run();
+    }
+  };
+  function scan(scope) {
+    if (!on) return;
+    (scope || document).querySelectorAll("[data-um-motion]:not([data-um-bound])").forEach(function (el) {
+      el.setAttribute("data-um-bound", "1");
+      var fn = presets[el.getAttribute("data-um-motion")];
+      if (fn) try { fn(el); } catch (e) { console.warn("[um-motion]", e); }
+    });
+  }
+  function crossfade(a, b) {
+    if (!on) { if (a) a.hidden = true; if (b) b.hidden = false; return; }
+    if (a) gsap.to(a, { autoAlpha: 0, duration: 0.2, onComplete: function () { a.hidden = true; gsap.set(a, { clearProps: "all" }); } });
+    if (b) { b.hidden = false; gsap.fromTo(b, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.25, ease: "power1.out" }); }
+  }
+  /* toast: entra y16 250ms, vive 4s, sai 200ms */
+  function toast(msg, action) {
+    var region = document.querySelector("[data-um-toasts]"); if (!region) return;
+    var el = document.createElement("div"); el.className = "um-toast"; el.setAttribute("role", "status");
+    el.innerHTML = '<svg class="um-icon" aria-hidden="true"><use href="#i-check"/></svg><span></span>' + (action ? '<button type="button"></button>' : "");
+    el.querySelector("span").textContent = msg; if (action) el.querySelector("button").textContent = action;
+    region.appendChild(el);
+    var bye = function () { if (on) gsap.to(el, { autoAlpha: 0, y: -8, duration: 0.2, ease: "power2.in", onComplete: function () { el.remove(); } }); else el.remove(); };
+    if (action) el.querySelector("button").addEventListener("click", bye);
+    if (on) gsap.fromTo(el, { autoAlpha: 0, y: 16 }, { autoAlpha: 1, y: 0, duration: 0.25, ease: "power2.out" });
+    setTimeout(bye, 4000);
+  }
+  /* tema: claro padrão · escuro por SO ou toggle (lembra no localStorage) */
+  function temaAtual() { var t = root.getAttribute("data-theme"); return t || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"); }
+  function syncToggles() {
+    var dark = temaAtual() === "dark";
+    document.querySelectorAll("[data-um-tema-toggle]").forEach(function (b) {
+      b.setAttribute("aria-label", dark ? "Usar tema claro" : "Usar tema escuro");
+      var u = b.querySelector("use"); if (u) u.setAttribute("href", dark ? "#i-sun" : "#i-moon");
+    });
+  }
+  function setTema(t) {
+    root.setAttribute("data-theme", t);
+    try { localStorage.setItem("um-tema", t); } catch (e) {}
+    document.querySelectorAll("iframe").forEach(function (f) { try { f.contentWindow.postMessage({ umTema: t }, "*"); } catch (e) {} });
+    syncToggles();
+  }
+  window.addEventListener("message", function (e) { if (e.data && (e.data.umTema === "dark" || e.data.umTema === "light")) { root.setAttribute("data-theme", e.data.umTema); syncToggles(); } });
+  document.addEventListener("click", function (e) {
+    var t = e.target.closest("[data-um-tema-toggle]"); if (t) { setTema(temaAtual() === "dark" ? "light" : "dark"); return; }
+    var c = e.target.closest("[data-um-chip]"); if (c) { c.setAttribute("aria-pressed", c.getAttribute("aria-pressed") === "true" ? "false" : "true"); return; }
+    var f = e.target.closest("[data-um-fav]");
+    if (f) { var p = f.getAttribute("aria-pressed") === "true"; f.setAttribute("aria-pressed", p ? "false" : "true"); if (!p) toast("Evento salvo nos favoritos", "Desfazer"); }
+  });
+  window.umMotion = { on: on, scan: scan, crossfade: crossfade, toast: toast, setTema: setTema };
+  window.umToast = toast;
+  function boot() { syncToggles(); scan(); }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot); else boot();
+  if (document.fonts && document.fonts.ready && on && hasST) document.fonts.ready.then(function () { window.ScrollTrigger.refresh(); });
+})();
+/* ==== MOTION:FIM ==== */
+</script>
+</body>
+</html>

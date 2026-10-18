@@ -1,0 +1,90 @@
+# ============================================================================
+# CI da UMURA — molde do build.yml do MyPods, sem deploy.
+# Fluxo: push na main → testes → versão semântica → imagem no GHCR (:X.Y.Z + :latest)
+# → tag vX.Y.Z. Deploy não existe aqui: a hospedagem ainda não foi decidida.
+#
+# O código .NET vive em `src/`, então o contexto do build é `./src` e o caminho do
+# projeto de testes começa com `src/`. O Actions só executa workflows que estejam em
+# `.github/workflows/` na RAIZ do repositório.
+# ============================================================================
+name: build
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:            # rodar sem commit vazio
+
+permissions:
+  contents: write               # o passo de criar a tag vX.Y.Z precisa de write
+  packages: write               # push no GHCR
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      # Os testes compõem services reais com fakes in-memory — nenhum toca banco,
+      # então rodam no runner sem MySQL nem secrets.
+      - run: dotnet test src/Agenda_Shows.Tests/Agenda_Shows.Tests.csproj -c Release
+
+  build:
+    needs: test
+    # GUARDA DE BRANCH: um workflow_dispatch em feature branch NÃO pode publicar
+    # :latest nem tag semver — só a main gera release.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0        # semantic-version precisa do histórico + tags
+
+      - name: Calcular versão
+        id: ver
+        # Tag EXATA (v5.4.0): esta action não publica tag flutuante "v5" — @v5 falha
+        # com "unable to find version".
+        uses: paulhatch/semantic-version@v5.4.0
+        with:
+          version_format: "${major}.${minor}.${patch}"
+
+      - name: Normalizar nome da imagem   # GHCR exige lowercase; github.repository
+        id: img                           # preserva maiúsculas (Agenta_Shows → agenta_shows)
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Login no GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build e push
+        uses: docker/build-push-action@v6
+        with:
+          # ./src, não '.': o Dockerfile faz `COPY Agenda_Shows.UI/...csproj` relativo
+          # à pasta src/, que fica um nível abaixo da raiz do git.
+          context: ./src
+          push: true
+          build-args: |
+            Version=${{ steps.ver.outputs.version }}
+          tags: |
+            ${{ steps.img.outputs.name }}:${{ steps.ver.outputs.version }}
+            ${{ steps.img.outputs.name }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Criar tag da versão         # semantic-version SÓ CALCULA; sem a tag, um
+        run: |                            # re-run repete a versão e major/minor não sobem
+          git tag "v${{ steps.ver.outputs.version }}" || exit 0
+          git push origin "v${{ steps.ver.outputs.version }}" || true
+
+# ── DEPLOY NÃO ACONTECE AQUI, DE PROPÓSITO ──────────────────────────────────
+# Este workflow só TESTA, CONSTRÓI e PUBLICA a imagem. Quando a hospedagem for
+# decidida, o deploy entra num workflow separado, disparado por clique manual:
+# deploy é decisão, não consequência automática de commit.

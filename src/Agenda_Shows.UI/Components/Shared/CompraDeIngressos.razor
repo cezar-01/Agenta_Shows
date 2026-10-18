@@ -1,0 +1,232 @@
+@using Microsoft.Extensions.Logging
+@inject IPedidos Compras
+@inject NavigationManager Nav
+@inject ILogger<CompraDeIngressos> Log
+
+@* A escolha de ingressos da página do evento (ilha interativa: a página em volta é SSR estático). Lista os lotes, o
+   seletor de quantidade e a barra com o total e o CTA coral. O preço mostrado é informativo: quem calcula o total de
+   verdade é o IPedidos, a partir do banco. O pagamento é SIMULADO. *@
+
+<div class="um-compra">
+    <h2 class="um-compra-titulo">Ingressos</h2>
+
+    @if (Cancelado)
+    {
+        <p class="um-compra-fechada">Evento cancelado — a venda de ingressos está fechada.</p>
+    }
+    else if (Encerrado)
+    {
+        <p class="um-compra-fechada">Este evento já aconteceu — as vendas foram encerradas.</p>
+    }
+
+    @if (Lotes.Count == 0)
+    {
+        <p class="um-compra-fechada">O organizador ainda não abriu a venda de ingressos.</p>
+    }
+    else
+    {
+        <div class="um-compra-lotes">
+            @foreach (var l in Lotes)
+            {
+                var q = Qtd(l.Id);
+                var max = MaximoDoLote(l);
+                <div class="um-lote">
+                    <div class="um-compra-lote-info">
+                        <b>@l.Nome</b>
+                        @if (!string.IsNullOrWhiteSpace(l.Descricao))
+                        {
+                            <small>@l.Descricao</small>
+                        }
+                        <span class="um-compra-preco um-tnum">@Preco(l.PrecoCentavos)</span>
+                        @if (l.Esgotado)
+                        {
+                            <span class="um-badge um-badge-danger">Esgotado</span>
+                        }
+                        else if (l.Disponiveis < 20)
+                        {
+                            <span class="um-badge um-badge-warning um-tnum">Restam @l.Disponiveis</span>
+                        }
+                    </div>
+                    @if (Aberta && !l.Esgotado)
+                    {
+                        <div class="um-qtd" role="group" aria-label="@($"Quantidade de {l.Nome}")">
+                            <button type="button" aria-label="@($"Tirar um {l.Nome}")" disabled="@(q == 0 || enviando)"
+                                    @onclick="() => Mudar(l, -1)">−</button>
+                            <output aria-live="polite">@q</output>
+                            <button type="button" aria-label="@($"Pôr mais um {l.Nome}")"
+                                    disabled="@(q >= max || TotalItens >= Maximo || enviando)"
+                                    @onclick="() => Mudar(l, 1)">+</button>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    }
+
+    @if (Aberta)
+    {
+        @if (TotalItens >= Maximo)
+        {
+            <p class="um-hint um-compra-teto">No máximo @Maximo ingressos por pedido.</p>
+        }
+
+        @if (erro is not null)
+        {
+            <div class="um-alert um-alert-danger um-compra-erro" role="alert">@erro</div>
+        }
+
+        <div class="um-barra-compra">
+            <div class="um-compra-total" aria-live="polite">
+                <small>@ResumoDosItens</small>
+                <b>@TotalTexto</b>
+            </div>
+            @if (logado)
+            {
+                <button type="button" class="um-btn um-btn-accent um-btn-wrap" disabled="@(TotalItens == 0 || enviando)"
+                        aria-busy="@(enviando ? "true" : null)" @onclick="ComprarAsync">
+                    @TextoDoBotao
+                </button>
+            }
+            else
+            {
+                <a href="@EntrarUrl" class="um-btn um-btn-accent um-btn-wrap">Entrar para comprar</a>
+            }
+        </div>
+        @if (!logado)
+        {
+            <p class="um-hint um-compra-nota">Você entra na sua conta e volta direto para esta página.</p>
+        }
+    }
+    else if (!Cancelado && !Encerrado && Lotes.Count > 0)
+    {
+        <p class="um-compra-fechada">Esgotado: todos os lotes acabaram.</p>
+    }
+
+    <p class="um-compra-simulacao">Pagamento simulado — nenhum valor é cobrado nesta demonstração.</p>
+</div>
+
+<style>
+    .um-compra-titulo { font-size: 1.25rem; margin: 0 0 0.25rem; }
+    .um-compra-lote-info { display: grid; gap: 0.2rem; min-width: 0; }
+    .um-compra-lote-info .um-badge { justify-self: start; margin-top: 0.15rem; }
+    .um-compra-preco { font-weight: 700; color: var(--um-ink); }
+    .um-compra-lotes .um-qtd { flex: none; }
+    .um-compra-fechada { margin: 0.5rem 0; color: var(--um-ink-soft); }
+    .um-compra-teto { margin: 0.75rem 0 0; }
+    .um-compra-erro { margin-top: 0.75rem; }
+    .um-compra-total { display: grid; gap: 0.1rem; min-width: 0; }
+    .um-compra-total small { font-size: 0.8125rem; opacity: 0.85; }
+    .um-barra-compra .um-btn { flex: 0 1 auto; }
+    .um-compra-nota { margin: 0.5rem 0 0; }
+    .um-compra-simulacao { margin: 0.75rem 0 0; font-size: 0.8125rem; color: var(--um-ink-muted); }
+</style>
+
+@code {
+    [Parameter, EditorRequired] public int EventoId { get; set; }
+    [Parameter, EditorRequired] public string Slug { get; set; } = string.Empty;
+    [Parameter] public IReadOnlyList<LoteDto> Lotes { get; set; } = [];
+    [Parameter] public bool Encerrado { get; set; }
+    [Parameter] public bool Cancelado { get; set; }
+
+    [CascadingParameter] private Task<AuthenticationState>? Estado { get; set; }
+
+    /// <summary>O mesmo teto que o serviço confere (a tela só evita o "não" do servidor).</summary>
+    private const int Maximo = global::Agenda_Shows.Services.Pedidos.Pedidos.MaximoPorPedido;
+
+    private readonly Dictionary<int, int> qtd = new();
+    private bool logado;
+    private bool enviando;
+    private string? erro;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var user = Estado is null ? null : (await Estado).User;
+        logado = Autorizacao.UsuarioId(user) is not null;
+    }
+
+    protected override void OnParametersSet()
+    {
+        Lotes ??= [];
+        // Lote que sumiu ou esgotou não fica com quantidade escolhida.
+        foreach (var id in qtd.Keys.ToList())
+            if (Lotes.FirstOrDefault(l => l.Id == id) is not { Esgotado: false }) qtd.Remove(id);
+    }
+
+    private bool Aberta => !Cancelado && !Encerrado && Lotes.Any(l => !l.Esgotado);
+
+    private int Qtd(int loteId) => qtd.TryGetValue(loteId, out var n) ? n : 0;
+
+    private int TotalItens => qtd.Values.Sum();
+
+    private int TotalCentavos => Lotes.Sum(l => l.PrecoCentavos * Qtd(l.Id));
+
+    private static int MaximoDoLote(LoteDto l) => Math.Max(0, Math.Min(l.Disponiveis, Maximo));
+
+    private static string Preco(int centavos) => centavos == 0 ? "Grátis" : Dinheiro.Reais(centavos);
+
+    private bool TudoGratis => TotalItens > 0 ? TotalCentavos == 0 : Lotes.Where(l => !l.Esgotado).All(l => l.PrecoCentavos == 0);
+
+    private string ResumoDosItens => TotalItens switch
+    {
+        0 => "Escolha a quantidade",
+        1 => "1 ingresso",
+        var n => $"{n} ingressos",
+    };
+
+    private string TotalTexto => TotalItens > 0 && TotalCentavos == 0 ? "Grátis" : Dinheiro.Reais(TotalCentavos);
+
+    private string TextoDoBotao => enviando ? "Reservando…" : TudoGratis ? "Garantir ingresso grátis" : "Comprar ingressos";
+
+    private string EntrarUrl => "/entrar?returnUrl=" + Uri.EscapeDataString("/evento/" + Slug);
+
+    private void Mudar(LoteDto l, int delta)
+    {
+        if (enviando) return;
+        erro = null;
+        var atual = Qtd(l.Id);
+        if (delta > 0 && TotalItens >= Maximo) return;
+        var novo = Math.Clamp(atual + delta, 0, MaximoDoLote(l));
+        if (novo == 0) qtd.Remove(l.Id);
+        else qtd[l.Id] = novo;
+    }
+
+    private async Task ComprarAsync()
+    {
+        // Guarda de reentrância: o segundo clique (ou o Enter repetido) chega com "enviando" já ligado e para aqui.
+        if (enviando || TotalItens == 0) return;
+        enviando = true;
+        erro = null;
+
+        try
+        {
+            var user = Estado is null ? null : (await Estado).User;
+            var escolhas = qtd.Where(kv => kv.Value > 0).Select(kv => new Escolha(kv.Key, kv.Value)).ToList();
+            if (user is null)
+            {
+                erro = Autorizacao.MensagemAutenticacao;
+            }
+            else
+            {
+                var r = await Compras.CriarAsync(user, EventoId, escolhas);
+                if (r.Ok && !string.IsNullOrEmpty(r.Valor))
+                {
+                    // Segue "enviando" até a navegação trocar a página: nada de terceiro clique no meio.
+                    Nav.NavigateTo("/pedido/" + Uri.EscapeDataString(r.Valor));
+                    return;
+                }
+                erro = r.Erro ?? "Não consegui reservar seus ingressos agora. Tente de novo.";
+            }
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            erro = ex.Message;
+        }
+        catch (Exception ex)
+        {
+            Log.LogWarning("Pedido não criado ({Erro}).", ex.GetType().Name);
+            erro = "Não consegui reservar seus ingressos agora. Tente de novo em instantes.";
+        }
+
+        enviando = false;
+    }
+}

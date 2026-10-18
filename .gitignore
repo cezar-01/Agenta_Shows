@@ -480,3 +480,13 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+# UMURA: dados locais do MySQL de teste e cache de tiles do mapa
+docker/mysql/data/
+**/tiles-cache/
+
+# Prévia sem Docker: banco SQLite local (perfil previa-sem-docker)
+umura-previa.db*
+
+# Ilustrações: PNG intermediário do render (os .webp finais vão para wwwroot/img)
+design/ilustracoes/png/

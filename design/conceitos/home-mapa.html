@@ -1,0 +1,1165 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+<meta name="theme-color" content="#0B3C3F">
+<title>Conceito · Home (mapa) — UMURA</title>
+<!--
+  CONCEITO — rota "/" (arquétipo: vitrine). Gerado a partir de design/template-conceito-umura.html.
+  Mobile 390px primeiro: mapa de tela cheia + busca + chips + bottom sheet + bottom-nav.
+  Desktop ≥1024: lista à esquerda (40%), mapa à direita (60%), sincronizados.
+  Parâmetros: ?estado=normal|carregando|vazio|lista · ?sel=<id> · ?tema=escuro · ?estatico=1 (sem coreografia)
+  O mapa é ILUSTRATIVO (SVG); no app é Leaflet + tiles pelo /api/mapa/tiles com estilo calmo.
+-->
+<!-- HEAD:INICIO -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300..800&family=Readex+Pro:wght@300..700&display=swap" rel="stylesheet">
+<script>
+/* tema antes do primeiro paint (sem flash) + gate do motion */
+(function () {
+  var r = document.documentElement, q = location.search;
+  try { var t = localStorage.getItem("um-tema"); if (t === "light" || t === "dark") r.setAttribute("data-theme", t); } catch (e) {}
+  var m = /[?&]tema=(claro|escuro)/.exec(q); if (m) r.setAttribute("data-theme", m[1] === "escuro" ? "dark" : "light");
+  if (!/[?&](estatico|embed)=1/.test(q)) {
+    r.classList.add("um-motion");
+    setTimeout(function () { if (!window.gsap) r.classList.remove("um-motion"); }, 2500);
+  }
+})();
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.13.0/gsap.min.js" onerror="document.documentElement.classList.remove('um-motion')"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.13.0/ScrollTrigger.min.js"></script>
+<!-- HEAD:FIM -->
+<script>if (/[?&]embed=1/.test(location.search)) document.documentElement.classList.add("is-embed");</script>
+<style>
+/* ==== BASE:INICIO ==== */
+/* ============ TOKENS — claro (padrão) ============ */
+:root{
+  color-scheme: light;
+  /* paleta oficial (PDF) — use os papéis abaixo, não estas constantes */
+  --um-deep-green:#0B3C3F; --um-worker-green:#6E6F5E; --um-premium-grey:#282828;
+  --um-off-white:#EDECE7; --um-coral:#FF5A3C;
+
+  --um-bg:#EDECE7;            /* Off White */
+  --um-surface:#F6F5F1;       /* card, input, header */
+  --um-surface-2:#E4E2DB;     /* hover, poço de imagem */
+  --um-border:#D3D1C8;
+  --um-border-soft:#E0DED6;
+  --um-ink:#282828;           /* Premium Grey — texto principal (12,5:1) */
+  --um-ink-soft:#3F3F3F;      /* corpo (8,9:1) */
+  --um-ink-muted:#6E6F5E;     /* Worker Green — SÓ rótulo ≥14px/600 (4,33:1) */
+  --um-brand:#0B3C3F;         /* Deep Green — títulos, CTA primário (10,25:1) */
+  --um-brand-ink:#EDECE7;
+  --um-brand-hover:#0F4A4D;
+  --um-brand-bg:rgba(11,60,63,.08);
+  --um-accent:#FF5A3C;        /* Coral — agora/ação, 1 por viewport, NUNCA texto pequeno sobre Off White (2,62:1) */
+  --um-accent-ink:#282828;    /* Premium Grey sobre coral = 4,76:1 */
+  --um-accent-hover:#FF6E54;  /* hover clareia: mantém ≥4,5:1 com a tinta */
+  --um-accent-bg:rgba(255,90,60,.12);
+  /* semânticos: cor cheia = ícone/borda; *-ink = texto (o tom cheio reprova em 12px sobre o fundo 12%) */
+  --um-success:#1F8A4C; --um-success-bg:rgba(31,138,76,.12);  --um-success-ink:#17663A;
+  --um-warning:#B8860B; --um-warning-bg:rgba(184,134,11,.14); --um-warning-ink:#7A5807;
+  --um-danger:#C8372D;  --um-danger-bg:rgba(200,55,45,.12);   --um-danger-ink:#A12A22;
+  --um-info:#2F6F9F;    --um-info-bg:rgba(47,111,159,.12);    --um-info-ink:#245A82;
+  --um-focus:#0B3C3F;
+  --um-overlay:rgba(11,60,63,.42);
+  --um-skel:#E4E2DB; --um-skel-hi:#F3F2EE;
+  /* mapa do conceito (no app: tiles "smooth" ou filtro CSS no .leaflet-tile-pane) */
+  --um-map-land:#E4E2DA; --um-map-street:#F2F1EC; --um-map-road:#FBFAF7; --um-map-road-edge:#D2CFC4;
+  --um-map-park:#D3DBC8; --um-map-water:#BED0D0; --um-map-label:#5E5F50; --um-map-halo:rgba(237,236,231,.92);
+
+  --um-radius-sm:8px; --um-radius:14px; --um-radius-lg:20px; --um-radius-pill:999px;
+  /* no claro a sombra LÊ (oposto do dark do MyPods): suave + borda */
+  --um-shadow-sm:0 1px 2px rgba(40,40,40,.06),0 2px 6px rgba(40,40,40,.05);
+  --um-shadow:0 2px 4px rgba(40,40,40,.05),0 8px 24px rgba(40,40,40,.10);
+  --um-shadow-lg:0 4px 10px rgba(40,40,40,.06),0 18px 48px rgba(40,40,40,.16);
+
+  --um-display:'Coco Gothic','Outfit',system-ui,sans-serif;
+  --um-font:'Readex Pro',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --um-mono:ui-monospace,'Cascadia Mono',Consolas,monospace;
+
+  --um-container:1280px; --um-header:60px; --um-nav-h:64px;
+  --um-gutter:clamp(1rem,4vw,1.5rem); --um-sec-pad:clamp(2rem,6vw,4rem); --um-tap:44px;
+  --um-ease-sheet:cubic-bezier(.32,.72,0,1);
+  --um-z-sticky:10; --um-z-drawer:49; --um-z-header:50; --um-z-fab:55; --um-z-sheet:60;
+  --um-z-dropdown:300; --um-z-float:940; --um-z-consent:1000; --um-z-critical:1100;
+}
+@media (min-width:1024px){ :root{ --um-header:72px; } }
+
+/* ============ TOKENS — escuro (prefers-color-scheme OU data-theme="dark") ============ */
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    color-scheme: dark;
+    --um-bg:#0B3C3F; --um-surface:#0F4A4D; --um-surface-2:#15575A; --um-border:#1E6366; --um-border-soft:#15575A;
+    --um-ink:#EDECE7; --um-ink-soft:#D6D5CF; --um-ink-muted:#A9B3A6;
+    --um-brand:#EDECE7; --um-brand-ink:#0B3C3F; --um-brand-hover:#F6F5F1; --um-brand-bg:rgba(237,236,231,.08);
+    --um-accent-bg:rgba(255,90,60,.16);
+    --um-success:#6FD39A; --um-success-bg:rgba(111,211,154,.14); --um-success-ink:#8FE0B2;
+    --um-warning:#E9C46A; --um-warning-bg:rgba(233,196,106,.14); --um-warning-ink:#F0D58E;
+    --um-danger:#FF8A7A;  --um-danger-bg:rgba(255,138,122,.14);  --um-danger-ink:#FFA597;
+    --um-info:#8CC3EA;    --um-info-bg:rgba(140,195,234,.14);    --um-info-ink:#A8D3F0;
+    --um-focus:#EDECE7; --um-overlay:rgba(3,22,24,.62);
+    --um-skel:#15575A; --um-skel-hi:#1E6366; --um-media-filter:brightness(.9) saturate(.95);
+    --um-map-land:#0D4245; --um-map-street:#124D50; --um-map-road:#1A5D60; --um-map-road-edge:#0A3537;
+    --um-map-park:#16574A; --um-map-water:#093A3C; --um-map-label:#A9B3A6; --um-map-halo:rgba(11,60,63,.88);
+    --um-shadow-sm:0 1px 2px rgba(0,0,0,.25);
+    --um-shadow:0 2px 6px rgba(0,0,0,.25),0 10px 28px rgba(0,0,0,.30);
+    --um-shadow-lg:0 4px 12px rgba(0,0,0,.30),0 22px 56px rgba(0,0,0,.45);
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme: dark;
+  --um-bg:#0B3C3F; --um-surface:#0F4A4D; --um-surface-2:#15575A; --um-border:#1E6366; --um-border-soft:#15575A;
+  --um-ink:#EDECE7; --um-ink-soft:#D6D5CF; --um-ink-muted:#A9B3A6;
+  --um-brand:#EDECE7; --um-brand-ink:#0B3C3F; --um-brand-hover:#F6F5F1; --um-brand-bg:rgba(237,236,231,.08);
+  --um-accent-bg:rgba(255,90,60,.16);
+  --um-success:#6FD39A; --um-success-bg:rgba(111,211,154,.14); --um-success-ink:#8FE0B2;
+  --um-warning:#E9C46A; --um-warning-bg:rgba(233,196,106,.14); --um-warning-ink:#F0D58E;
+  --um-danger:#FF8A7A;  --um-danger-bg:rgba(255,138,122,.14);  --um-danger-ink:#FFA597;
+  --um-info:#8CC3EA;    --um-info-bg:rgba(140,195,234,.14);    --um-info-ink:#A8D3F0;
+  --um-focus:#EDECE7; --um-overlay:rgba(3,22,24,.62);
+  --um-skel:#15575A; --um-skel-hi:#1E6366; --um-media-filter:brightness(.9) saturate(.95);
+  --um-map-land:#0D4245; --um-map-street:#124D50; --um-map-road:#1A5D60; --um-map-road-edge:#0A3537;
+  --um-map-park:#16574A; --um-map-water:#093A3C; --um-map-label:#A9B3A6; --um-map-halo:rgba(11,60,63,.88);
+  --um-shadow-sm:0 1px 2px rgba(0,0,0,.25);
+  --um-shadow:0 2px 6px rgba(0,0,0,.25),0 10px 28px rgba(0,0,0,.30);
+  --um-shadow-lg:0 4px 12px rgba(0,0,0,.30),0 22px 56px rgba(0,0,0,.45);
+}
+
+/* ============ BASE ============ */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:auto;-webkit-text-size-adjust:100%;text-size-adjust:100%}
+body{
+  min-height:100vh;background:var(--um-bg);color:var(--um-ink-soft);
+  font-family:var(--um-font);font-size:16px;line-height:1.55;font-weight:400;
+  -webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent;
+}
+h1,h2,h3,h4{font-family:var(--um-display);color:var(--um-ink);font-weight:600;line-height:1.12;letter-spacing:0}
+h1{font-size:clamp(2rem,4vw,2.75rem)}
+h2{font-size:clamp(1.5rem,3vw,2rem)}
+h3{font-size:1.2rem}
+p{max-width:68ch}
+a{color:var(--um-brand);text-decoration:underline;text-underline-offset:3px;transition:color .15s ease}
+img,svg{display:block}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+::selection{background:var(--um-accent-bg);color:var(--um-ink)}
+:focus-visible{outline:2px solid var(--um-focus);outline-offset:2px;border-radius:4px}
+.tnum{font-variant-numeric:tabular-nums}
+.um-visually-hidden{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.um-icon{width:20px;height:20px;flex:none;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+
+/* ============ LAYOUT ============ */
+.um-container{max-width:var(--um-container);margin-inline:auto;padding-inline:var(--um-gutter)}
+.um-section{padding-block:var(--um-sec-pad)}
+/* eyebrow: texto Deep Green + traço coral de 3px (coral como LINHA, nunca como texto) */
+.um-eyebrow{display:inline-flex;align-items:center;gap:.6rem;font:600 12px/1.2 var(--um-font);letter-spacing:.16em;text-transform:uppercase;color:var(--um-brand)}
+.um-eyebrow::before{content:"";width:20px;height:3px;border-radius:2px;background:var(--um-accent);flex:none}
+.um-sec-head{display:flex;flex-direction:column;gap:.5rem;margin-bottom:1.75rem}
+.um-sec-sub{color:var(--um-ink-soft);font-size:1rem}
+.um-display{font-family:var(--um-display);font-size:clamp(2.4rem,7vw,4.5rem);line-height:1;letter-spacing:.04em;text-transform:uppercase;font-weight:700;color:var(--um-brand)}
+.um-meta{font:600 14px/1.3 var(--um-font);color:var(--um-ink-muted)}
+
+/* ============ LOGO ============ */
+.um-logo{display:inline-flex;align-items:center;gap:.55rem;color:var(--um-brand);text-decoration:none;min-height:var(--um-tap)}
+.um-logo svg{width:30px;height:30px}
+.um-logo b{font:700 1.2rem/1 var(--um-display);letter-spacing:.14em}
+
+/* ============ BOTÕES (sempre pílula) ============ */
+.um-btn{
+  position:relative;display:inline-flex;align-items:center;justify-content:center;gap:.5rem;
+  min-height:var(--um-tap);padding:.6rem 1.35rem;border-radius:var(--um-radius-pill);
+  font:600 15px/1.2 var(--um-font);text-decoration:none;white-space:nowrap;cursor:pointer;
+  border:1px solid transparent;
+  transition:background-color .15s ease,border-color .15s ease,color .15s ease,transform .1s ease-out;
+}
+.um-btn:active{transform:scale(.97)}
+.um-btn .um-icon{width:20px;height:20px}
+.um-btn-primary{background:var(--um-brand);color:var(--um-brand-ink)}
+.um-btn-primary:hover{background:var(--um-brand-hover)}
+.um-btn-accent{background:var(--um-accent);color:var(--um-accent-ink)}   /* 1 por viewport: "Ver ingresso" */
+.um-btn-accent:hover{background:var(--um-accent-hover)}
+.um-btn-outline{background:transparent;color:var(--um-ink);border-color:var(--um-border)}
+.um-btn-outline:hover{background:var(--um-surface-2);border-color:var(--um-ink-muted)}
+.um-btn-ghost{background:transparent;color:var(--um-ink-soft)}
+.um-btn-ghost:hover{background:var(--um-surface-2);color:var(--um-ink)}
+.um-btn-danger{background:transparent;color:var(--um-danger-ink);border-color:var(--um-danger)}
+.um-btn-danger:hover{background:var(--um-danger-bg)}
+.um-btn[disabled],.um-btn[aria-disabled="true"]{opacity:.45;cursor:not-allowed;transform:none}
+.um-btn-primary:focus-visible,.um-btn-accent:focus-visible{outline-offset:3px}
+.um-btn-block{width:100%}
+.um-btn-icon{width:var(--um-tap);height:var(--um-tap);padding:0;border-radius:50%;flex:none}
+.um-btn-icon.um-btn-outline{background:var(--um-surface)}
+.um-btn-icon[aria-pressed="true"]{color:var(--um-accent-ink);background:var(--um-accent);border-color:var(--um-accent)}
+.um-btn-icon[aria-pressed="true"] .um-icon{fill:currentColor}
+
+/* ============ CARD ============ */
+.um-card{background:var(--um-surface);border:1px solid var(--um-border-soft);border-radius:var(--um-radius);box-shadow:var(--um-shadow-sm);padding:1.25rem}
+.um-card-lg{border-radius:var(--um-radius-lg)}
+.um-media{position:relative;aspect-ratio:16/9;border-radius:var(--um-radius-sm);overflow:hidden;background:var(--um-surface-2);border:1px solid var(--um-border-soft)}
+.um-media > svg{width:100%;height:100%;filter:var(--um-media-filter,none)}
+
+/* ============ MAPA ILUSTRATIVO (símbolo #map-geo) ============ */
+.g-land{fill:var(--um-map-land)}
+.g-street{fill:none;stroke:var(--um-map-street);stroke-width:3}
+.g-park{fill:var(--um-map-park)}
+.g-water{fill:var(--um-map-water)}
+.g-river{fill:none;stroke:var(--um-map-water);stroke-width:6;stroke-linecap:round;vector-effect:non-scaling-stroke}
+.g-rd{fill:none;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+.g-casing-minor{stroke:var(--um-map-road-edge);stroke-width:6}
+.g-road-minor{stroke:var(--um-map-road);stroke-width:4}
+.g-casing-major{stroke:var(--um-map-road-edge);stroke-width:9}
+.g-road-major{stroke:var(--um-map-road);stroke-width:6.5}
+
+/* ============ CHIP (filtro, aria-pressed) ============ */
+.um-chips{display:flex;gap:.5rem;flex-wrap:wrap}
+.um-chip{
+  position:relative;display:inline-flex;align-items:center;gap:.4rem;min-height:40px;padding:0 .95rem;
+  border-radius:var(--um-radius-pill);font:500 14px/1 var(--um-font);white-space:nowrap;cursor:pointer;
+  background:var(--um-surface);color:var(--um-ink);border:1px solid var(--um-border);
+  transition:background-color .12s ease,border-color .12s ease,color .12s ease;
+}
+.um-chip::after{content:"";position:absolute;inset:-2px 0}  /* alvo de 44px sem engordar o visual */
+.um-chip .um-icon{width:18px;height:18px}
+.um-chip:hover{border-color:var(--um-ink-muted)}
+.um-chip[aria-pressed="true"]{background:var(--um-brand);color:var(--um-brand-ink);border-color:var(--um-brand)}
+.um-dot-now{width:8px;height:8px;border-radius:50%;background:var(--um-accent);flex:none}
+
+/* ============ BADGE (status = cor + ícone/texto) ============ */
+.um-badge{display:inline-flex;align-items:center;gap:.3rem;min-height:24px;padding:0 .6rem;border-radius:var(--um-radius-pill);font:600 12px/1 var(--um-font);white-space:nowrap}
+.um-badge .um-icon{width:14px;height:14px;stroke-width:2}
+.um-badge-success{color:var(--um-success-ink);background:var(--um-success-bg)}
+.um-badge-warning{color:var(--um-warning-ink);background:var(--um-warning-bg)}
+.um-badge-danger{color:var(--um-danger-ink);background:var(--um-danger-bg)}
+.um-badge-info{color:var(--um-info-ink);background:var(--um-info-bg)}
+.um-badge-free{color:var(--um-brand);background:var(--um-brand-bg);box-shadow:inset 0 0 0 1px var(--um-border)}
+.um-badge-now{color:var(--um-ink);background:var(--um-accent-bg)}
+.um-badge-neutral{color:var(--um-ink-soft);background:var(--um-surface-2)}
+/* etiqueta de categoria sobre imagem (ícone + texto, nunca só cor) */
+.um-tag{display:inline-flex;align-items:center;gap:.35rem;min-height:26px;padding:0 .65rem;border-radius:var(--um-radius-pill);font:600 12px/1 var(--um-font);background:var(--um-surface);color:var(--um-ink);box-shadow:var(--um-shadow-sm)}
+.um-tag .um-icon{width:14px;height:14px;stroke-width:2}
+
+/* ============ CARD DE EVENTO (estrutura do kit Urbura) ============ */
+.um-evento{position:relative;display:flex;flex-direction:column;background:var(--um-surface);border:1px solid var(--um-border-soft);border-radius:var(--um-radius);box-shadow:var(--um-shadow-sm);overflow:hidden;transition:border-color .15s ease,box-shadow .15s ease,transform .15s ease-out}
+.um-evento:hover{border-color:var(--um-border);box-shadow:var(--um-shadow);transform:translateY(-2px)}
+.um-evento .um-media{border-radius:0;border:0;border-bottom:1px solid var(--um-border-soft)}
+.um-evento .um-tag{position:absolute;left:10px;top:10px}
+.um-evento-fav{position:absolute;right:6px;top:6px;z-index:2}
+.um-evento-fav.um-btn-icon{background:var(--um-surface);box-shadow:var(--um-shadow-sm)}
+.um-evento-body{display:flex;flex-direction:column;gap:.3rem;padding:.9rem 1rem 1rem;flex:1}
+.um-when{display:flex;align-items:center;gap:.45rem;font:600 12.5px/1.2 var(--um-font);letter-spacing:.08em;text-transform:uppercase;color:var(--um-ink)}
+.um-evento-title{font:600 1.12rem/1.2 var(--um-display);color:var(--um-ink)}
+.um-evento-title a{color:inherit;text-decoration:none}
+.um-evento-title a::after{content:"";position:absolute;inset:0;z-index:1} /* card inteiro clicável */
+.um-where{display:flex;align-items:center;gap:.3rem;font-size:14px;color:var(--um-ink-soft)}
+.um-where .um-icon{width:16px;height:16px;color:var(--um-ink-muted)}
+.um-evento-foot{display:flex;align-items:center;justify-content:space-between;gap:.5rem;margin-top:auto;padding-top:.6rem}
+.um-price{font:600 14px/1 var(--um-font);color:var(--um-ink)}
+/* variante linha (lista/sheet) */
+.um-evento-row{display:grid;grid-template-columns:128px 1fr;gap:.85rem;align-items:start;padding:.75rem;flex-direction:row}
+.um-evento-row .um-media{border-radius:var(--um-radius-sm);border:1px solid var(--um-border-soft)}
+.um-evento-row .um-evento-body{padding:0;gap:.2rem}
+.um-evento-row .um-evento-title{font-size:1.02rem}
+
+/* ============ CAMPOS ============ */
+.um-field{display:flex;flex-direction:column;gap:6px;margin-bottom:1rem}
+.um-label{font:600 14px/1.3 var(--um-font);color:var(--um-ink)}
+.um-label .opt{font-weight:400;color:var(--um-ink-soft)}
+.um-input-wrap{position:relative;display:flex;align-items:center}
+.um-input-wrap > .um-icon{position:absolute;left:14px;color:var(--um-ink-muted);pointer-events:none}
+.um-input{
+  width:100%;min-height:48px;padding:0 14px;font:400 16px/1.2 var(--um-font);
+  background:var(--um-surface);color:var(--um-ink);border:1px solid var(--um-border);border-radius:12px;
+  transition:border-color .15s ease;
+}
+.um-input-wrap > .um-icon + .um-input{padding-left:44px}
+.um-input::placeholder{color:var(--um-ink-muted);opacity:1}
+.um-input:hover{border-color:var(--um-ink-muted)}
+.um-input:focus-visible{outline:2px solid var(--um-focus);outline-offset:1px;border-color:var(--um-brand)}
+.um-hint{font-size:13px;color:var(--um-ink-soft)}
+.um-field.is-error .um-input{border-color:var(--um-danger)}
+.um-error-msg{display:flex;align-items:center;gap:.35rem;font:500 13px/1.3 var(--um-font);color:var(--um-danger-ink)}
+.um-error-msg .um-icon{width:16px;height:16px}
+
+/* ============ ALERTA / VAZIO ============ */
+.um-alert{display:flex;gap:.75rem;align-items:flex-start;padding:.9rem 1rem;border-radius:var(--um-radius);border:1px solid var(--um-border-soft);background:var(--um-surface)}
+.um-alert > .um-icon{margin-top:2px}
+.um-alert b{display:block;color:var(--um-ink);font-weight:600}
+.um-alert p{font-size:14px}
+.um-alert-success > .um-icon{color:var(--um-success)}
+.um-alert-warning{background:var(--um-warning-bg);border-color:transparent} .um-alert-warning > .um-icon{color:var(--um-warning-ink)}
+.um-alert-danger{background:var(--um-danger-bg);border-color:transparent} .um-alert-danger > .um-icon{color:var(--um-danger-ink)}
+.um-empty{display:flex;flex-direction:column;align-items:center;text-align:center;gap:.6rem;padding:2rem 1.25rem}
+.um-empty-icon{display:grid;place-items:center;width:56px;height:56px;border-radius:50%;background:var(--um-surface-2);color:var(--um-brand)}
+.um-empty-icon .um-icon{width:26px;height:26px}
+.um-empty h3{font-size:1.15rem}
+.um-empty p{font-size:15px;max-width:34ch}
+
+/* ============ SKELETON ============ */
+.um-skel{border-radius:var(--um-radius-sm);background:linear-gradient(90deg,var(--um-skel) 25%,var(--um-skel-hi) 45%,var(--um-skel) 65%);background-size:200% 100%;animation:um-shimmer 1.5s linear infinite}
+@keyframes um-shimmer{to{background-position:-200% 0}}
+
+/* ============ BOTTOM SHEET ============ */
+.um-backdrop{position:fixed;inset:0;z-index:calc(var(--um-z-sheet) - 1);background:var(--um-overlay);opacity:0;pointer-events:none;transition:opacity .25s ease}
+.um-backdrop.is-open{opacity:1;pointer-events:auto}
+.um-sheet{
+  position:fixed;left:0;right:0;bottom:0;z-index:var(--um-z-sheet);
+  max-height:88dvh;overflow:auto;overscroll-behavior:contain;
+  background:var(--um-surface);border:1px solid var(--um-border-soft);border-bottom:0;
+  border-radius:var(--um-radius-lg) var(--um-radius-lg) 0 0;box-shadow:var(--um-shadow-lg);
+  padding:4px var(--um-gutter) calc(1.25rem + env(safe-area-inset-bottom));
+  transform:translateY(105%);transition:transform .4s var(--um-ease-sheet);
+}
+.um-sheet.is-open{transform:translateY(0)}
+.um-sheet-handle{display:flex;align-items:center;justify-content:center;width:100%;height:28px;cursor:grab}
+.um-sheet-handle::before{content:"";width:40px;height:5px;border-radius:999px;background:var(--um-border)}
+@media (min-width:641px){ .um-sheet{left:50%;right:auto;width:min(560px,92vw);translate:-50% 0} }
+
+/* ============ TOAST ============ */
+.um-toasts{position:fixed;left:50%;bottom:calc(var(--um-nav-h) + 16px + env(safe-area-inset-bottom));translate:-50% 0;z-index:var(--um-z-float);display:flex;flex-direction:column;gap:8px;width:min(92vw,420px);pointer-events:none}
+.um-toast{display:flex;align-items:center;gap:.7rem;padding:.75rem .9rem .75rem 1rem;border-radius:var(--um-radius);background:var(--um-ink);color:var(--um-bg);box-shadow:var(--um-shadow-lg);font:500 14px/1.35 var(--um-font);pointer-events:auto}
+.um-toast .um-icon{width:20px;height:20px}
+.um-toast button{margin-left:auto;min-height:var(--um-tap);padding:0 .6rem;font-weight:600;text-decoration:underline;text-underline-offset:3px;color:inherit}
+
+/* ============ MOTION — estado inicial só com motion ligado (sem JS/reduce = visível) ============ */
+@media (prefers-reduced-motion:no-preference){
+  .um-motion [data-um-motion="reveal"],.um-motion [data-um-motion="card-in"],
+  .um-motion [data-um-motion="reveal-group"] > *,.um-motion [data-um-motion="hero"] [data-um-hero-item]{opacity:0}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+}
+/* ============ BREAKPOINTS FIXOS: 1024 / 980 / 900 / 640 / 480 (não criar outros) ============
+   1024 nav → bottom-nav · 980 hero 1 coluna · 900 grids 1 coluna · 640 tabela→cards, inputs 16px · 480 extremo
+   Escreva as media queries do conceito DEPOIS das classes que elas sobrescrevem. */
+/* ==== BASE:FIM ==== */
+
+/* =====================================================================
+   HOME / MAPA — mobile primeiro
+   ===================================================================== */
+body{background:var(--um-bg)}
+/* a tela vive num container: o layout responde à largura do container (tela real = viewport; quadros do anexo = 390px) */
+.hm-shell,.hm-frame{container:hm / inline-size}
+.hm-app{
+  --peek:304px; --top-h:120px;
+  position:relative;height:var(--hm-h,100svh);min-height:600px;overflow:hidden;isolation:isolate;
+  background:var(--um-map-land);
+}
+
+/* ---------- mapa ---------- */
+.hm-map{position:absolute;inset:0;overflow:hidden;container-type:size;z-index:0}
+.hm-world{
+  --ww:max(1266px,150cqh); --fx:.5; --fy:.42; --cx:50%; --cy:calc(50% - 124px);
+  position:absolute;width:var(--ww);height:calc(var(--ww) * 5 / 6);
+  left:calc(var(--cx) - var(--fx) * var(--ww));top:calc(var(--cy) - var(--fy) * var(--ww) * 5 / 6);
+}
+.hm-geo{position:absolute;inset:0;width:100%;height:100%}
+.hm-label{position:absolute;left:var(--x);top:var(--y);translate:-50% -50%;font:600 10.5px/1 var(--um-font);letter-spacing:.14em;text-transform:uppercase;color:var(--um-map-label);white-space:nowrap;pointer-events:none;
+  text-shadow:0 0 2px var(--um-map-halo),0 0 3px var(--um-map-halo),0 0 6px var(--um-map-halo),0 0 10px var(--um-map-halo)}
+.hm-label.is-park{font-style:italic;font-weight:500;text-transform:none;letter-spacing:.02em;font-size:11px}
+.hm-label[data-lg]{display:none}
+
+/* pino (Deep Green; coral = selecionado) — alvo 44px, ícone de categoria */
+.hm-pin{position:absolute;left:var(--x);top:var(--y);width:44px;height:52px;margin:-52px 0 0 -22px;z-index:2;--pin-bg:var(--um-brand);color:var(--um-brand-ink);border-radius:12px}
+.hm-pin-in{position:absolute;inset:0;transform-origin:50% calc(100% - 1px);transition:scale .15s ease-out}
+.hm-pin-shape{position:absolute;left:4px;bottom:0;width:36px;height:46px;fill:var(--pin-bg);stroke:var(--um-surface);stroke-width:2;filter:drop-shadow(0 2px 3px rgba(0,0,0,.28));transition:fill .15s ease}
+.hm-pin .um-icon{position:absolute;left:13px;top:15px;width:18px;height:18px;stroke-width:2}
+.hm-pin:hover .hm-pin-in,.hm-pin.is-hover .hm-pin-in{scale:1.08}
+.hm-pin[aria-pressed="true"]{--pin-bg:var(--um-accent);color:var(--um-accent-ink);z-index:5}
+.hm-pin[aria-pressed="true"] .hm-pin-in{scale:1.22}
+.hm-pin[aria-pressed="true"]::after{content:"";position:absolute;left:50%;bottom:-4px;width:24px;height:8px;margin-left:-12px;border-radius:50%;background:var(--um-accent);opacity:.35}
+/* cluster */
+.hm-cluster{position:absolute;left:var(--x);top:var(--y);margin:-24px 0 0 -24px;z-index:2;display:grid;place-items:center;width:48px;height:48px;border-radius:50%;
+  background:var(--um-brand);color:var(--um-brand-ink);font:600 17px/1 var(--um-display);font-variant-numeric:tabular-nums;border:2px solid var(--um-surface);
+  box-shadow:0 0 0 7px color-mix(in srgb,var(--um-brand) 20%,transparent),var(--um-shadow-sm);transition:scale .15s ease-out}
+.hm-cluster:hover{scale:1.06}
+/* você está aqui (estado real → pode pulsar) */
+.hm-me{position:absolute;left:var(--x);top:var(--y);margin:-9px 0 0 -9px;z-index:1;width:18px;height:18px;border-radius:50%;background:var(--um-info);border:3px solid var(--um-surface);box-shadow:var(--um-shadow-sm)}
+.hm-me::before{content:"";position:absolute;inset:-17px;border-radius:50%;background:var(--um-info-bg);border:1px solid color-mix(in srgb,var(--um-info) 30%,transparent)}
+@media (prefers-reduced-motion:no-preference){
+  .hm-me::after{content:"";position:absolute;inset:-3px;border-radius:50%;border:2px solid var(--um-info);animation:hm-pulse 2s ease-out infinite}
+}
+@keyframes hm-pulse{from{transform:scale(1);opacity:.6}to{transform:scale(2.6);opacity:0}}
+/* rótulo do pino selecionado (desktop) */
+.hm-tip{position:absolute;left:var(--x);top:var(--y);translate:-50% calc(-100% - 62px);z-index:6;display:none;align-items:center;gap:.4rem;padding:.4rem .75rem;border-radius:999px;background:var(--um-surface);color:var(--um-ink);box-shadow:var(--um-shadow);font:600 13px/1.2 var(--um-font);white-space:nowrap;pointer-events:none}
+.hm-tip span{color:var(--um-ink-soft);font-weight:500}
+
+/* controles do mapa */
+.hm-locate{position:absolute;right:12px;bottom:calc(var(--um-nav-h) + var(--peek) + 12px);z-index:var(--um-z-fab);background:var(--um-surface);border-color:var(--um-border-soft);box-shadow:var(--um-shadow);transition:opacity .2s ease,background-color .15s ease}
+.hm-app[data-sheet="full"] .hm-locate{opacity:0;pointer-events:none}
+.hm-zoom{display:none}
+.hm-status{position:absolute;left:50%;top:calc(var(--top-h) + 12px);translate:-50% 0;z-index:3;display:none;align-items:center;gap:.55rem;padding:.55rem .95rem;border-radius:999px;background:var(--um-surface);color:var(--um-ink);box-shadow:var(--um-shadow);font:500 14px/1 var(--um-font);white-space:nowrap}
+.hm-spin{width:16px;height:16px;border-radius:50%;border:2px solid var(--um-border);border-top-color:var(--um-brand);animation:hm-spin .8s linear infinite}
+@keyframes hm-spin{to{transform:rotate(360deg)}}
+.hm-credit{display:none}
+.hm-app[data-estado="carregando"] .hm-status{display:inline-flex}
+.hm-app[data-estado="carregando"] :is(.hm-pin,.hm-cluster,.hm-tip),
+.hm-app[data-estado="vazio"] :is(.hm-pin,.hm-cluster,.hm-tip){display:none}
+
+/* ---------- topo: busca + chips (flutuando sobre o mapa) ---------- */
+.hm-top{position:absolute;top:0;left:0;right:0;z-index:var(--um-z-header);padding:calc(10px + env(safe-area-inset-top)) 12px 0;display:flex;flex-direction:column;gap:8px;pointer-events:none}
+.hm-top > *{pointer-events:auto}
+.hm-header{display:flex;align-items:center;gap:2px;height:52px;padding:0 4px 0 6px;border-radius:var(--um-radius-pill);background:var(--um-surface);border:1px solid var(--um-border-soft);box-shadow:var(--um-shadow)}
+.hm-header .um-logo{justify-content:center;min-width:var(--um-tap)}
+.hm-header .um-logo svg{width:28px;height:28px}
+.hm-header .um-logo b{display:none}
+.hm-search{position:relative;flex:1;min-width:0;display:flex;align-items:center}
+.hm-search > .um-icon{display:none}
+.hm-search input{width:100%;height:44px;padding:0 8px;border:0;border-radius:999px;background:transparent;color:var(--um-ink);font:400 16px/1.2 var(--um-font)}
+.hm-search input::placeholder{color:var(--um-ink-muted);opacity:1}
+.hm-search input::-webkit-search-decoration{display:none}
+.hm-navtop{display:none}
+.hm-actions{display:flex;align-items:center;gap:6px}
+.hm-only-lg{display:none!important}
+.hm-avatar{background:var(--um-surface-2);color:var(--um-ink)}
+.hm-avatar:hover{background:var(--um-border-soft)}
+.hm-chips{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;margin:0 -12px;padding:2px 12px 8px}
+.hm-chips::-webkit-scrollbar{display:none}
+.hm-chips .um-chip{box-shadow:var(--um-shadow-sm);border-color:var(--um-border-soft)}
+.hm-chips .um-chip[aria-pressed="true"]{border-color:var(--um-brand)}
+
+/* ---------- sheet (mobile) = painel (desktop) ---------- */
+.hm-panel{
+  position:absolute;left:0;right:0;bottom:var(--um-nav-h);z-index:var(--um-z-sheet);
+  height:calc(100% - var(--um-nav-h) - 64px);display:flex;flex-direction:column;
+  background:var(--um-surface);border:1px solid var(--um-border-soft);border-bottom:0;border-radius:var(--um-radius-lg) var(--um-radius-lg) 0 0;
+  box-shadow:0 -6px 28px rgba(11,60,63,.14);
+  transform:translateY(calc(100% - var(--peek)));transition:transform .4s var(--um-ease-sheet);
+}
+.hm-app[data-sheet="full"] .hm-panel{transform:translateY(0)}
+.hm-handle{flex:none;display:flex;align-items:center;justify-content:center;width:100%;height:28px;cursor:grab;border-radius:var(--um-radius-lg) var(--um-radius-lg) 0 0}
+.hm-handle::before{content:"";width:40px;height:5px;border-radius:999px;background:var(--um-border)}
+.hm-panel-scroll{flex:1;min-height:0;overflow:hidden;padding:0 12px 20px;overscroll-behavior:contain}
+.hm-app[data-sheet="full"] .hm-panel-scroll{overflow-y:auto}
+
+/* card do evento selecionado (abre ao tocar no pino) */
+.hm-sel{position:relative;padding:12px 12px 12px 15px;margin-bottom:6px;border-radius:var(--um-radius);background:var(--um-bg);border:1px solid var(--um-border-soft)}
+.hm-sel::before{content:"";position:absolute;left:0;top:14px;bottom:14px;width:3px;border-radius:0 3px 3px 0;background:var(--um-accent)}
+.hm-sel-top{display:grid;grid-template-columns:116px 1fr auto;gap:12px;align-items:start}
+.hm-sel-body{display:flex;flex-direction:column;gap:3px;min-width:0;padding-top:1px}
+.hm-sel-title{font:600 1.16rem/1.18 var(--um-display);color:var(--um-ink)}
+.hm-sel-close{margin:-8px -8px 0 0}
+.hm-sel-badges{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:10px}
+.hm-sel-actions{display:flex;gap:8px;margin-top:12px}
+.hm-sel-actions .um-btn-primary{flex:1}
+.hm-app[data-sel=""] .hm-sel{display:none}
+.hm-cat{display:inline-flex;align-items:center;gap:.3rem;font:500 13px/1 var(--um-font);color:var(--um-ink-soft)}
+.hm-cat .um-icon{width:15px;height:15px}
+
+.hm-list-head{display:flex;align-items:flex-end;justify-content:space-between;gap:.75rem;padding:12px 2px 8px}
+.hm-list-head h2{font-size:1.22rem}
+.hm-list-head .um-meta{margin-top:3px;font-size:13.5px}
+.hm-sort{min-height:var(--um-tap);padding:0 .5rem 0 .75rem;font-size:14px;color:var(--um-ink)}
+.hm-sort .um-icon{width:18px;height:18px}
+.hm-list{list-style:none}
+.hm-list li + li{border-top:1px solid var(--um-border-soft)}
+.hm-list li[hidden]{display:none}
+.hm-list .um-evento{background:transparent;border:0;box-shadow:none;border-radius:12px;padding:12px 4px}
+.hm-list .um-evento:hover{transform:none;background:var(--um-surface-2);box-shadow:none}
+.hm-list .um-evento-row{grid-template-columns:116px 1fr}
+.hm-row-foot{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:6px}
+.hm-more{margin-top:10px}
+
+/* estados do painel */
+.hm-loading,.hm-empty{display:none}
+.hm-app[data-estado="carregando"] .hm-loaded,.hm-app[data-estado="vazio"] .hm-loaded{display:none}
+.hm-app[data-estado="carregando"] .hm-loading{display:block}
+.hm-app[data-estado="vazio"] .hm-empty{display:flex}
+.hm-skel-row{display:grid;grid-template-columns:116px 1fr;gap:12px;padding:12px 4px}
+.hm-skel-row + .hm-skel-row{border-top:1px solid var(--um-border-soft)}
+.hm-skel-lines{display:flex;flex-direction:column;gap:9px;padding-top:2px}
+.hm-empty{padding:18px 8px 8px}
+.hm-empty h2{font-size:1.2rem}
+.hm-empty-actions{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin-top:6px}
+
+/* ---------- bottom-nav ---------- */
+.hm-nav{position:absolute;left:0;right:0;bottom:0;z-index:calc(var(--um-z-sheet) + 1);height:calc(var(--um-nav-h) + env(safe-area-inset-bottom));padding-bottom:env(safe-area-inset-bottom);
+  display:grid;grid-template-columns:repeat(4,1fr);background:var(--um-surface);border-top:1px solid var(--um-border-soft)}
+.hm-nav a{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font:500 12px/1 var(--um-font);color:var(--um-ink-soft);text-decoration:none;border-radius:12px}
+.hm-nav .ic{display:grid;place-items:center;width:56px;height:30px;border-radius:999px;transition:background-color .15s ease}
+.hm-nav .um-icon{width:22px;height:22px}
+.hm-nav a:hover .ic{background:var(--um-surface-2)}
+.hm-nav a[aria-current="page"]{color:var(--um-brand);font-weight:600}
+.hm-nav a[aria-current="page"] .ic{background:var(--um-brand-bg)}
+
+/* ---------- coreografia de entrada (só com motion ligado) ---------- */
+@media (prefers-reduced-motion:no-preference){
+  .um-motion .hm-app.is-intro :is(.hm-pin,.hm-cluster,.hm-me,.hm-header,.hm-chips){opacity:0}
+}
+@container hm (max-width:1023px){
+  .um-motion .hm-app.is-intro .hm-panel{transform:translateY(100%)}
+}
+
+/* ---------- anexo do conceito (estados) ---------- */
+.hm-annex{padding-block:var(--um-sec-pad);border-top:1px solid var(--um-border)}
+.is-embed .hm-annex{display:none}
+.hm-ctrl{display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:1.75rem}
+.hm-frames{display:grid;grid-template-columns:repeat(auto-fit,390px);justify-content:center;gap:2rem 1.5rem}
+.hm-frames figure{display:flex;flex-direction:column;gap:.75rem}
+.hm-frame{position:relative;width:390px;height:760px;border-radius:28px;overflow:hidden;border:1px solid var(--um-border);box-shadow:var(--um-shadow);background:var(--um-map-land)}
+.hm-frame .hm-app{min-height:0}
+.hm-frames figcaption b{display:block;font:600 1rem/1.3 var(--um-display);color:var(--um-ink)}
+.hm-frames figcaption span{font-size:14px}
+.hm-notes{margin-top:2.5rem;display:grid;grid-template-columns:repeat(2,1fr);gap:1rem 2rem;list-style:none;font-size:15px}
+.hm-notes li{padding-left:1.1rem;position:relative}
+.hm-notes li::before{content:"";position:absolute;left:0;top:.62em;width:6px;height:6px;border-radius:50%;background:var(--um-brand)}
+.hm-notes b{color:var(--um-ink)}
+
+/* =====================================================================
+   480 / 640 — ajustes do estreito
+   ===================================================================== */
+@media (max-width:640px){
+  .hm-frames{grid-template-columns:1fr}
+  .hm-frame{width:100%;height:720px}
+  .hm-notes{grid-template-columns:1fr}
+}
+
+/* =====================================================================
+   ≥1024 — lista à esquerda (40%), mapa à direita (60%)
+   ===================================================================== */
+@container hm (min-width:1024px){
+  .hm-app{display:grid;grid-template-columns:minmax(440px,40%) 1fr;grid-template-rows:var(--um-header) auto 1fr;grid-template-areas:"head head" "chips map" "panel map";height:var(--hm-h,100vh);min-height:640px}
+  .hm-top{display:contents}
+  .hm-header{grid-area:head;height:auto;gap:20px;padding:0 24px;border:0;border-bottom:1px solid var(--um-border-soft);border-radius:0;box-shadow:none;z-index:var(--um-z-header)}
+  .hm-header .um-logo b{display:inline}
+  .hm-header .um-logo svg{width:30px;height:30px}
+  .hm-search{flex:0 1 440px;margin-left:12px}
+  .hm-search > .um-icon{display:block;position:absolute;left:14px;color:var(--um-ink-muted);pointer-events:none}
+  .hm-search input{padding:0 16px 0 44px;background:var(--um-bg);border:1px solid var(--um-border-soft)}
+  .hm-search input:hover{border-color:var(--um-border)}
+  .hm-navtop{display:flex;gap:2px;margin-left:auto}
+  .hm-navtop a{display:inline-flex;align-items:center;gap:.45rem;min-height:var(--um-tap);padding:0 .95rem;border-radius:999px;color:var(--um-ink-soft);text-decoration:none;font:500 15px/1 var(--um-font)}
+  .hm-navtop a:hover{background:var(--um-surface-2);color:var(--um-ink)}
+  .hm-navtop a[aria-current="page"]{color:var(--um-brand);font-weight:600;background:var(--um-brand-bg)}
+  .hm-navtop .um-icon{width:18px;height:18px}
+  .hm-only-lg{display:inline-flex!important}
+  .hm-chips{grid-area:chips;flex-wrap:wrap;overflow:visible;margin:0;padding:18px 24px 6px;background:var(--um-surface);border-right:1px solid var(--um-border-soft);z-index:1}
+  .hm-chips .um-chip{box-shadow:none;border-color:var(--um-border)}
+  .hm-panel{grid-area:panel;position:relative;left:auto;right:auto;bottom:auto;height:auto;min-height:0;transform:none;transition:none;border:0;border-right:1px solid var(--um-border-soft);border-radius:0;box-shadow:none;z-index:1}
+  .hm-handle{display:none}
+  .hm-panel-scroll{overflow-y:auto!important;padding:8px 24px 28px}
+  .hm-sel{padding:16px 16px 16px 19px;margin-top:8px}
+  .hm-sel-top{grid-template-columns:200px 1fr auto;gap:16px}
+  .hm-sel-title{font-size:1.4rem}
+  .hm-sel-actions .um-btn-primary{flex:0 1 auto;padding-inline:1.6rem}
+  .hm-list .um-evento-row{grid-template-columns:160px 1fr;gap:16px}
+  .hm-skel-row{grid-template-columns:160px 1fr}
+  .hm-map{grid-area:map;position:relative;inset:auto}
+  .hm-world{--ww:max(2000px,150cqh,140cqw);--fx:.47;--cy:50%}
+  .hm-label[data-lg]{display:block}
+  .hm-tip{display:inline-flex}
+  .hm-app[data-sel=""] .hm-tip{display:none}
+  .hm-locate{right:20px;bottom:20px}
+  .hm-zoom{position:absolute;top:20px;right:20px;z-index:var(--um-z-fab);display:flex;flex-direction:column;border-radius:999px;background:var(--um-surface);border:1px solid var(--um-border-soft);box-shadow:var(--um-shadow-sm)}
+  .hm-zoom button{display:grid;place-items:center;width:var(--um-tap);height:var(--um-tap);border-radius:999px;color:var(--um-ink)}
+  .hm-zoom button:hover{background:var(--um-surface-2)}
+  .hm-zoom button + button{border-top:1px solid var(--um-border-soft);border-radius:0 0 999px 999px}
+  .hm-status{top:20px}
+  .hm-credit{display:block;position:absolute;left:12px;bottom:10px;z-index:2;padding:2px 8px;border-radius:6px;background:var(--um-map-halo);font-size:11px;color:var(--um-ink-soft)}
+  .hm-nav{display:none}
+}
+</style>
+</head>
+<body>
+<!-- SPRITE:INICIO — ícones (grade 24, traço 1,75) + logo + artes provisórias dos eventos -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <symbol id="um-symbol" viewBox="0 0 64 64">
+      <g fill="none" stroke="currentColor">
+        <path d="M5 21V5h16M43 5h16v16M59 43v16H43" stroke-width="6.5" stroke-linejoin="miter"/>
+        <circle cx="36" cy="28" r="12.5" stroke-width="6.5"/>
+        <path d="M22.5 33.5 9 47M27.5 40 13.5 54M34 43.5 23.5 54" stroke-width="5.5" stroke-linecap="round"/>
+      </g>
+    </symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></symbol>
+    <symbol id="i-locate" viewBox="0 0 24 24"><circle cx="12" cy="12" r="6.5"/><circle cx="12" cy="12" r="1.8" fill="currentColor"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3"/></symbol>
+    <symbol id="i-music" viewBox="0 0 24 24"><path d="M9 18V6l10-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/></symbol>
+    <symbol id="i-festa" viewBox="0 0 24 24"><path d="m11 3 1.9 5.1L18 10l-5.1 1.9L11 17l-1.9-5.1L4 10l5.1-1.9z"/><path d="M18.5 15v5M16 17.5h5"/></symbol>
+    <symbol id="i-feira" viewBox="0 0 24 24"><path d="M3 9.5 5 4.5h14l2 5"/><path d="M3 9.5a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0"/><path d="M5 12.5V20h14v-7.5M10 20v-4.5h4V20"/></symbol>
+    <symbol id="i-expo" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="1.5"/><path d="m3.5 16 5-5 4 4 3-3 5 5"/><circle cx="15.5" cy="9" r="1.5"/></symbol>
+    <symbol id="i-cinema" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="14" rx="2"/><path d="M7.5 5v14M16.5 5v14M3.5 9.7h4M3.5 14.3h4M16.5 9.7h4M16.5 14.3h4"/></symbol>
+    <symbol id="i-ticket" viewBox="0 0 24 24"><path d="M3.5 7.5a1 1 0 0 1 1-1h15a1 1 0 0 1 1 1V10a2 2 0 0 0 0 4v2.5a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1V14a2 2 0 0 0 0-4z"/><path d="M14.5 7v1.6M14.5 11.2v1.6M14.5 15.4V17"/></symbol>
+    <symbol id="i-heart" viewBox="0 0 24 24"><path d="M12 20s-7.5-4.6-7.5-10.1A4.4 4.4 0 0 1 12 7.3a4.4 4.4 0 0 1 7.5 2.6C19.5 15.4 12 20 12 20z"/></symbol>
+    <symbol id="i-share" viewBox="0 0 24 24"><path d="M12 14.5v-11M8 7.5l4-4 4 4"/><path d="M5.5 12.5v6a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2v-6"/></symbol>
+    <symbol id="i-verified" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="m8.5 12.3 2.4 2.4 4.6-5"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
+    <symbol id="i-map" viewBox="0 0 24 24"><path d="M9 4.5 3.5 6.5v13l5.5-2 6 2 5.5-2v-13l-5.5 2z"/><path d="M9 4.5v13M15 6.5v13"/></symbol>
+    <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></symbol>
+    <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="3.7"/><path d="M4.8 20a7.2 7.2 0 0 1 14.4 0"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+    <symbol id="i-chevron-up" viewBox="0 0 24 24"><path d="m6 15 6-6 6 6"/></symbol>
+    <symbol id="i-chevron-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="i-chevron-right" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+    <symbol id="i-arrow-left" viewBox="0 0 24 24"><path d="M19 12H5M11 6l-6 6 6 6"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></symbol>
+    <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6 6 6M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4 6 18M18 6l1.4-1.4"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M19.5 14.5A7.8 7.8 0 0 1 9.5 4.5a7.8 7.8 0 1 0 10 10z"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><path d="M10.3 4.5 2.9 17.5a2 2 0 0 0 1.7 3h14.8a2 2 0 0 0 1.7-3L13.7 4.5a2 2 0 0 0-3.4 0z"/><path d="M12 9.5V14M12 17.2v.1"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5M12 7.8v.1"/></symbol>
+    <symbol id="i-route" viewBox="0 0 24 24"><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="6" r="2.5"/><path d="M8.5 18H15a3 3 0 0 0 0-6H9a3 3 0 0 1 0-6h6.5"/></symbol>
+    <symbol id="i-flag" viewBox="0 0 24 24"><path d="M5.5 21V4.5h11l-2 4 2 4h-11"/></symbol>
+    <symbol id="i-ban" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="m6 6 12 12"/></symbol>
+    <symbol id="i-external" viewBox="0 0 24 24"><path d="M14 4.5h5.5V10M19.5 4.5 11 13"/><path d="M18 14v4.5a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 4 18.5v-11A1.5 1.5 0 0 1 5.5 6H10"/></symbol>
+    <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></symbol>
+    <symbol id="i-layers" viewBox="0 0 24 24"><path d="m12 4 8.5 4.5L12 13 3.5 8.5z"/><path d="m3.5 12.5 8.5 4.5 8.5-4.5M3.5 16.5 12 21l8.5-4.5"/></symbol>
+
+    <!-- ARTES PROVISÓRIAS (16:9) — no app entram as fotos reais do evento (direção fotográfica do PDF) -->
+    <linearGradient id="g-jz-sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0E2629"/><stop offset="1" stop-color="#21403D"/></linearGradient>
+    <radialGradient id="g-jz-glow" cx=".55" cy=".8" r=".55"><stop offset="0" stop-color="#FF9A62" stop-opacity=".55"/><stop offset="1" stop-color="#FF9A62" stop-opacity="0"/></radialGradient>
+    <symbol id="art-jazz" viewBox="0 0 160 90">
+      <rect width="160" height="90" fill="url(#g-jz-sky)"/>
+      <path d="M0 40h8V22l6-9 6 9v18h10v-8l12-7 12 7v8h14V28h22v12h12l9-8 9 8h10V30h30v60H0z" fill="#0B1F21"/>
+      <g fill="#F2C27A" opacity=".85"><rect x="34" y="34" width="3" height="4"/><rect x="41" y="34" width="3" height="4"/><rect x="48" y="34" width="3" height="4"/><rect x="72" y="33" width="3" height="5"/><rect x="80" y="33" width="3" height="5"/><rect x="88" y="33" width="3" height="5"/><rect x="134" y="35" width="3" height="4"/><rect x="142" y="35" width="3" height="4"/><rect x="150" y="35" width="3" height="4"/><rect x="12" y="27" width="2.5" height="5"/></g>
+      <path d="M0 18Q40 36 80 22T160 24" fill="none" stroke="#33504D" stroke-width=".6"/>
+      <g fill="#FFD9A0"><circle cx="8" cy="21.5" r="1.2"/><circle cx="20" cy="25.5" r="1.2"/><circle cx="33" cy="28" r="1.2"/><circle cx="46" cy="28.6" r="1.2"/><circle cx="59" cy="27.2" r="1.2"/><circle cx="72" cy="24.6" r="1.2"/><circle cx="86" cy="21.2" r="1.2"/><circle cx="100" cy="19.6" r="1.2"/><circle cx="114" cy="20" r="1.2"/><circle cx="128" cy="21.6" r="1.2"/><circle cx="142" cy="23.4" r="1.2"/><circle cx="155" cy="24.2" r="1.2"/></g>
+      <rect width="160" height="90" fill="url(#g-jz-glow)"/>
+      <g fill="#14100E"><circle cx="86" cy="49" r="3.4"/><path d="M80 70c0-9 2-15 6-15s6 6 6 15z"/><path d="M90 57l6 9-2 2-6-8z"/><circle cx="104" cy="51" r="3.2"/><path d="M98 72c0-8 2-14 6-14s6 6 6 14z"/></g>
+      <g fill="#061315"><circle cx="10" cy="74" r="5"/><path d="M0 90c0-9 4-12 10-12s10 3 10 12z"/><circle cx="32" cy="76" r="4.6"/><path d="M22 90c0-8 4-11 10-11s10 3 10 11z"/><circle cx="54" cy="73" r="5"/><path d="M44 90c0-9 4-12 10-12s10 3 10 12z"/><circle cx="76" cy="78" r="4.4"/><path d="M66 90c0-7 4-10 10-10s10 3 10 10z"/><circle cx="118" cy="75" r="4.8"/><path d="M108 90c0-8 4-11 10-11s10 3 10 11z"/><circle cx="140" cy="77" r="4.6"/><path d="M130 90c0-8 4-11 10-11s10 3 10 11z"/><circle cx="158" cy="74" r="5"/></g>
+    </symbol>
+
+    <linearGradient id="g-fe-wall" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#D8D2C3"/><stop offset="1" stop-color="#C9C0AE"/></linearGradient>
+    <symbol id="art-feira" viewBox="0 0 160 90">
+      <rect width="160" height="90" fill="url(#g-fe-wall)"/>
+      <g fill="#F5F1E6" opacity=".9"><rect x="12" y="8" width="30" height="26" rx="1"/><rect x="65" y="8" width="30" height="26" rx="1"/><rect x="118" y="8" width="30" height="26" rx="1"/></g>
+      <g stroke="#9C927E" stroke-width=".8"><path d="M27 8v26M12 21h30M80 8v26M65 21h30M133 8v26M118 21h30"/></g>
+      <rect y="58" width="160" height="32" fill="#A79B83"/>
+      <g fill="#6E6F5E"><rect x="6" y="52" width="46" height="16" rx="1.5"/><rect x="58" y="54" width="44" height="14" rx="1.5"/><rect x="108" y="52" width="46" height="16" rx="1.5"/></g>
+      <g fill="#1E1E1E"><circle cx="14" cy="50" r="6"/><circle cx="27" cy="50" r="6"/><circle cx="40" cy="50" r="6"/><circle cx="68" cy="52" r="6"/><circle cx="81" cy="52" r="6"/><circle cx="94" cy="52" r="6"/><circle cx="117" cy="50" r="6"/><circle cx="130" cy="50" r="6"/><circle cx="143" cy="50" r="6"/></g>
+      <g fill="#FF5A3C"><circle cx="14" cy="50" r="1.8"/><circle cx="68" cy="52" r="1.8"/><circle cx="130" cy="50" r="1.8"/></g>
+      <g fill="#EDECE7"><circle cx="27" cy="50" r="1.8"/><circle cx="94" cy="52" r="1.8"/><circle cx="143" cy="50" r="1.8"/></g>
+      <g fill="#0B3C3F"><circle cx="40" cy="50" r="1.8"/><circle cx="81" cy="52" r="1.8"/><circle cx="117" cy="50" r="1.8"/></g>
+      <g fill="#2D2E27"><circle cx="54" cy="44" r="4"/><path d="M47 90V58c0-6 3-9 7-9s7 3 7 9v32z"/><circle cx="104" cy="42" r="4.2"/><path d="M97 90V57c0-6 3-9 7-9s7 3 7 9v33z"/></g>
+    </symbol>
+
+    <linearGradient id="g-fs-bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#150E13"/><stop offset="1" stop-color="#2B1420"/></linearGradient>
+    <symbol id="art-festa" viewBox="0 0 160 90">
+      <rect width="160" height="90" fill="url(#g-fs-bg)"/>
+      <path d="M40 0 10 90h40z" fill="#FF5A3C" opacity=".28"/><path d="M80 0 62 90h40z" fill="#3FA7A0" opacity=".22"/><path d="M122 0 108 90h44z" fill="#FF5A3C" opacity=".22"/><path d="M60 0 90 90h26z" fill="#EDECE7" opacity=".07"/>
+      <g fill="#FFE2CC"><circle cx="40" cy="2" r="2.2"/><circle cx="80" cy="2" r="2.2"/><circle cx="122" cy="2" r="2.2"/></g>
+      <g fill="#FFFFFF" opacity=".5"><circle cx="20" cy="30" r=".7"/><circle cx="55" cy="22" r=".6"/><circle cx="98" cy="35" r=".7"/><circle cx="140" cy="18" r=".6"/><circle cx="118" cy="44" r=".5"/><circle cx="70" cy="40" r=".5"/></g>
+      <g fill="#07050A"><circle cx="12" cy="66" r="5"/><path d="M0 90c0-10 5-15 12-15s12 5 12 15z"/><path d="M18 64l4-16 3 1-3 16z"/><circle cx="38" cy="70" r="4.6"/><path d="M26 90c0-9 5-13 12-13s12 4 12 13z"/><circle cx="62" cy="64" r="5"/><path d="M50 90c0-10 5-15 12-15s12 5 12 15z"/><path d="M56 62l-5-15 3-1 5 15zM68 62l5-15 3 1-5 15z"/><circle cx="88" cy="69" r="4.6"/><path d="M76 90c0-9 5-13 12-13s12 4 12 13z"/><circle cx="112" cy="65" r="5"/><path d="M100 90c0-10 5-15 12-15s12 5 12 15z"/><path d="M118 63l4-15 3 1-4 15z"/><circle cx="138" cy="70" r="4.6"/><path d="M126 90c0-9 5-13 12-13s12 4 12 13z"/><circle cx="158" cy="66" r="5"/></g>
+    </symbol>
+
+    <radialGradient id="g-ex-spot" cx=".5" cy="0" r=".9"><stop offset="0" stop-color="#FFFFFF" stop-opacity=".75"/><stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/></radialGradient>
+    <symbol id="art-expo" viewBox="0 0 160 90">
+      <rect width="160" height="90" fill="#E7E4DC"/>
+      <path d="M0 66h160v24H0z" fill="#CFC9BB"/><path d="M0 66h160" stroke="#BDB6A6" stroke-width=".8"/>
+      <ellipse cx="80" cy="10" rx="40" ry="40" fill="url(#g-ex-spot)"/><ellipse cx="28" cy="14" rx="20" ry="30" fill="url(#g-ex-spot)"/><ellipse cx="134" cy="14" rx="20" ry="30" fill="url(#g-ex-spot)"/>
+      <rect x="56" y="16" width="48" height="36" fill="#F4F2EC" stroke="#2A2A2A" stroke-width="1.6"/>
+      <rect x="60" y="20" width="40" height="28" fill="#0B3C3F"/><circle cx="88" cy="30" r="7" fill="#FF5A3C"/><path d="M60 40c10-6 22-6 40 2v6H60z" fill="#6E6F5E"/>
+      <rect x="16" y="22" width="22" height="28" fill="#F4F2EC" stroke="#2A2A2A" stroke-width="1.4"/><path d="M20 28h14M20 33h10M20 38h14M20 43h8" stroke="#282828" stroke-width="1.2"/>
+      <rect x="122" y="22" width="24" height="28" fill="#F4F2EC" stroke="#2A2A2A" stroke-width="1.4"/><path d="M126 46a8 8 0 0 1 16 0" fill="none" stroke="#0B3C3F" stroke-width="3"/>
+      <g fill="#2A2A2A"><circle cx="118" cy="52" r="3.6"/><path d="M112 90V64c0-5 2.6-8 6-8s6 3 6 8v26z"/></g>
+      <g fill="#3E3E3A"><circle cx="40" cy="55" r="3.2"/><path d="M35 90V66c0-5 2.2-7 5-7s5 2 5 7v24z"/></g>
+    </symbol>
+
+    <linearGradient id="g-op-sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7FA2A2"/><stop offset=".55" stop-color="#EFC6A2"/><stop offset="1" stop-color="#F6AE86"/></linearGradient>
+    <symbol id="art-opera" viewBox="0 0 160 90">
+      <rect width="160" height="90" fill="url(#g-op-sky)"/>
+      <rect y="62" width="160" height="28" fill="#30585A"/>
+      <g stroke="#F6E7D6" stroke-width=".5" opacity=".5"><path d="M20 70h30M70 74h40M120 70h24M40 80h50M100 84h40"/></g>
+      <g fill="none" stroke="#F4F1EA" stroke-width=".9"><path d="M46 62Q80 18 114 62"/><path d="M54 62Q80 28 106 62"/><path d="M62 62Q80 38 98 62"/></g>
+      <g stroke="#F4F1EA" stroke-width=".6"><path d="M80 40v22M70 45v17M90 45v17M61 52v10M99 52v10"/></g>
+      <path d="M44 62h72" stroke="#F4F1EA" stroke-width="1.2"/>
+      <g fill="#1B3433">
+        <path d="M18 62V28h1.6v34z"/><path d="M8 30q10-6 22 0-11-2-22 0zM9 26q9-5 20 0-10-2-20 0zM11 22q8-4 16 0-8-2-16 0z"/>
+        <path d="M138 62V22h1.8v40z"/><path d="M126 24q13-7 26 0-13-2-26 0zM127 20q12-6 24 0-12-2-24 0zM130 16q9-4 18 0-9-2-18 0z"/>
+        <path d="M152 62V34h1.4v28z"/><path d="M145 36q8-4 16 0-8-1.5-16 0z"/>
+        <path d="M0 62c10-6 20-8 34-4 10-6 22-5 30 4zM100 62c12-7 26-8 40-3 8-4 16-3 20 3z"/>
+      </g>
+    </symbol>
+
+    <linearGradient id="g-ci-scr" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#DCE8E4"/><stop offset="1" stop-color="#98B4AF"/></linearGradient>
+    <radialGradient id="g-ci-glow" cx=".5" cy=".3" r=".7"><stop offset="0" stop-color="#BFD6D3" stop-opacity=".35"/><stop offset="1" stop-color="#BFD6D3" stop-opacity="0"/></radialGradient>
+    <symbol id="art-cinema" viewBox="0 0 160 90">
+      <rect width="160" height="90" fill="#0C1315"/>
+      <rect width="160" height="90" fill="url(#g-ci-glow)"/>
+      <rect x="28" y="9" width="104" height="44" rx="1" fill="url(#g-ci-scr)"/>
+      <path d="M28 40c18-7 34-9 52-5s34 2 52-4v22H28z" fill="#6E8F8A"/><circle cx="104" cy="23" r="5" fill="#F6EFE2"/>
+      <g fill="#05090A"><rect x="0" y="64" width="160" height="26"/><circle cx="20" cy="62" r="4.4"/><circle cx="44" cy="63" r="4.2"/><circle cx="70" cy="61" r="4.5"/><circle cx="96" cy="63" r="4.2"/><circle cx="122" cy="62" r="4.4"/><circle cx="146" cy="63" r="4.2"/></g>
+      <g fill="#111A1C"><rect x="4" y="72" width="34" height="8" rx="3"/><rect x="44" y="72" width="34" height="8" rx="3"/><rect x="84" y="72" width="34" height="8" rx="3"/><rect x="124" y="72" width="34" height="8" rx="3"/></g>
+    </symbol>
+
+    <!-- MAPA ILUSTRATIVO DE CURITIBA (1200×1000; Centro ≈ 600,420). Só conceito: no app são tiles reais (Leaflet) -->
+    <pattern id="g-grid-a" width="36" height="36" patternUnits="userSpaceOnUse" patternTransform="rotate(9 600 420)"><path class="g-street" d="M0 0H36M0 0V36"/></pattern>
+    <pattern id="g-grid-b" width="30" height="30" patternUnits="userSpaceOnUse" patternTransform="rotate(-27 600 420)"><path class="g-street" d="M0 0H30M0 0V30"/></pattern>
+    <pattern id="g-grid-c" width="42" height="28" patternUnits="userSpaceOnUse" patternTransform="rotate(4 600 420)"><path class="g-street" d="M0 0H42M0 0V28"/></pattern>
+    <pattern id="g-grid-d" width="34" height="40" patternUnits="userSpaceOnUse" patternTransform="rotate(31 600 420)"><path class="g-street" d="M0 0H34M0 0V40"/></pattern>
+    <g id="g-roads-major">
+      <path class="g-rd" d="M600 0C598 120 596 220 602 330L606 420"/>
+      <path class="g-rd" d="M606 420C590 520 540 600 500 700S430 900 410 1000"/>
+      <path class="g-rd" d="M606 420C540 440 470 470 380 490S180 520 0 540"/>
+      <path class="g-rd" d="M606 420C680 420 780 410 880 430S1080 460 1200 470"/>
+      <path class="g-rd" d="M965 0C950 200 985 330 1000 470S990 700 1060 1000"/>
+    </g>
+    <g id="g-roads-minor">
+      <path class="g-rd" d="M612 432C650 520 700 600 760 700S830 880 870 1000"/>
+      <path class="g-rd" d="M560 402C500 382 420 360 330 330S120 280 0 262"/>
+      <path class="g-rd" d="M592 404C574 364 562 330 556 280S540 150 520 0"/>
+      <path class="g-rd" d="M300 600C450 562 560 536 650 520S900 482 1200 452"/>
+      <path class="g-rd" d="M0 760C200 740 400 730 560 700S900 640 1200 620"/>
+      <path class="g-rd" d="M640 410C720 360 800 300 880 230S1050 100 1120 0"/>
+      <path class="g-rd" d="M0 400C120 410 230 420 330 440S430 462 470 470"/>
+      <path class="g-rd" d="M760 700C730 800 705 900 700 1000"/>
+      <path class="g-rd" d="M400 0C420 120 440 200 470 300"/>
+      <path class="g-rd" d="M1200 250C1100 300 1040 330 985 360"/>
+    </g>
+    <symbol id="map-geo" viewBox="0 0 1200 1000">
+      <rect class="g-land" width="1200" height="1000"/>
+      <rect width="1200" height="1000" fill="url(#g-grid-a)"/>
+      <path class="g-land" d="M470 300Q560 268 690 278Q745 360 740 470Q640 520 540 515Q478 430 470 300Z"/>
+      <path d="M470 300Q560 268 690 278Q745 360 740 470Q640 520 540 515Q478 430 470 300Z" fill="url(#g-grid-b)"/>
+      <path class="g-land" d="M330 470Q440 455 545 515Q590 600 580 700Q450 720 330 690Q300 580 330 470Z"/>
+      <path d="M330 470Q440 455 545 515Q590 600 580 700Q450 720 330 690Q300 580 330 470Z" fill="url(#g-grid-c)"/>
+      <path class="g-land" d="M600 515Q700 500 760 475Q830 560 820 680Q720 700 610 690Q585 600 600 515Z"/>
+      <path d="M600 515Q700 500 760 475Q830 560 820 680Q720 700 610 690Q585 600 600 515Z" fill="url(#g-grid-d)"/>
+      <g class="g-park">
+        <path d="M632 380Q655 370 680 382Q684 398 664 408Q640 410 630 398Z"/>
+        <path d="M600 190Q640 170 690 190Q700 230 670 250Q625 258 605 235Z"/>
+        <path d="M548 274Q585 260 628 278Q634 314 602 324Q560 326 546 300Z"/>
+        <path d="M455 240Q480 232 500 246Q498 268 476 272Q456 266 455 240Z"/>
+        <path d="M452 548 490 540 496 566 458 574Z"/>
+        <path d="M770 515Q820 500 865 520Q872 565 835 585Q785 590 768 560Z"/>
+        <path d="M120 300Q190 280 220 340Q235 450 210 560Q160 600 120 560Q95 430 120 300Z"/>
+        <path d="M512 352h16v12h-16zM690 596h20v15h-20zM424 398h17v13h-17zM752 326h20v14h-20zM552 622h18v13h-18zM860 380h18v14h-18zM360 600h20v14h-20z"/>
+      </g>
+      <g class="g-water">
+        <ellipse cx="648" cy="214" rx="22" ry="11"/><ellipse cx="590" cy="304" rx="16" ry="8"/>
+        <path d="M150 380Q180 370 188 420Q190 480 165 500Q145 470 150 380Z"/>
+      </g>
+      <path class="g-river" d="M640 100C660 180 628 250 650 320S690 400 668 460S702 560 690 640S742 780 730 1000"/>
+      <path class="g-river" d="M150 0C172 150 140 300 168 420S150 700 190 1000"/>
+      <use href="#g-roads-minor" class="g-casing-minor"/>
+      <use href="#g-roads-minor" class="g-road-minor"/>
+      <use href="#g-roads-major" class="g-casing-major"/>
+      <use href="#g-roads-major" class="g-road-major"/>
+    </symbol>
+  </defs>
+</svg>
+<!-- SPRITE:FIM -->
+
+<div class="hm-shell">
+<div class="hm-app is-intro" id="hm-app" data-estado="normal" data-sheet="half" data-sel="jazz">
+
+  <!-- MAPA -->
+  <div class="hm-map" role="region" aria-label="Mapa de eventos de hoje em Curitiba">
+    <div class="hm-world">
+      <svg class="hm-geo" viewBox="0 0 1200 1000" preserveAspectRatio="none" aria-hidden="true"><use href="#map-geo"/></svg>
+
+      <span class="hm-label" style="--x:54.5%;--y:45.5%">Centro</span>
+      <span class="hm-label" style="--x:45.5%;--y:33.4%">São Francisco</span>
+      <span class="hm-label" style="--x:38.5%;--y:52.6%">Batel</span>
+      <span class="hm-label" style="--x:39%;--y:38%">Mercês</span>
+      <span class="hm-label" style="--x:61.5%;--y:38%">Alto da XV</span>
+      <span class="hm-label" style="--x:55%;--y:28.5%">Abranches</span>
+      <span class="hm-label" data-lg style="--x:61%;--y:55%">Rebouças</span>
+      <span class="hm-label" data-lg style="--x:44%;--y:61%">Água Verde</span>
+      <span class="hm-label" data-lg style="--x:69.5%;--y:60.5%">Jardim Botânico</span>
+      <span class="hm-label" data-lg style="--x:33%;--y:45%">Bigorrilho</span>
+      <span class="hm-label is-park" data-lg style="--x:60%;--y:40.6%">Passeio Público</span>
+      <span class="hm-label is-park" data-lg style="--x:55.5%;--y:22.5%">Parque São Lourenço</span>
+
+      <span class="hm-me" style="--x:50%;--y:47.5%" role="img" aria-label="Você está aqui"></span>
+
+      <button class="hm-cluster" type="button" style="--x:44%;--y:55.5%" aria-label="12 eventos na região do Água Verde — aproximar" data-cluster>12</button>
+
+      <button class="hm-pin" type="button" style="--x:49%;--y:30%" data-pin="opera" aria-pressed="false" aria-label="Sinfonia das Araucárias — hoje, 19:30, Ópera de Arame"><span class="hm-pin-in"><svg class="hm-pin-shape" viewBox="0 0 36 46" aria-hidden="true"><path d="M18 45C16.5 39 3 31 3 18a15 15 0 0 1 30 0c0 13-13.5 21-15 27z"/></svg><svg class="um-icon" aria-hidden="true"><use href="#i-music"/></svg></span></button>
+      <button class="hm-pin" type="button" style="--x:52.5%;--y:36.5%" data-pin="festa" aria-pressed="false" aria-label="Umbral — noite de techno — hoje, 23:00, Casa Lúmen"><span class="hm-pin-in"><svg class="hm-pin-shape" viewBox="0 0 36 46" aria-hidden="true"><path d="M18 45C16.5 39 3 31 3 18a15 15 0 0 1 30 0c0 13-13.5 21-15 27z"/></svg><svg class="um-icon" aria-hidden="true"><use href="#i-festa"/></svg></span></button>
+      <button class="hm-pin" type="button" style="--x:55.5%;--y:41.5%" data-pin="cinema" aria-pressed="false" aria-label="Clássicos no Passeio: 2001 — hoje, 21:00, Cine Passeio"><span class="hm-pin-in"><svg class="hm-pin-shape" viewBox="0 0 36 46" aria-hidden="true"><path d="M18 45C16.5 39 3 31 3 18a15 15 0 0 1 30 0c0 13-13.5 21-15 27z"/></svg><svg class="um-icon" aria-hidden="true"><use href="#i-cinema"/></svg></span></button>
+      <button class="hm-pin" type="button" style="--x:40%;--y:49%" data-pin="expo" aria-pressed="false" aria-label="Corpo Cidade — hoje, 19:00, Galeria Alameda"><span class="hm-pin-in"><svg class="hm-pin-shape" viewBox="0 0 36 46" aria-hidden="true"><path d="M18 45C16.5 39 3 31 3 18a15 15 0 0 1 30 0c0 13-13.5 21-15 27z"/></svg><svg class="um-icon" aria-hidden="true"><use href="#i-expo"/></svg></span></button>
+      <button class="hm-pin" type="button" style="--x:59.5%;--y:46.5%" data-pin="feira" aria-pressed="false" aria-label="Feira do Vinil — agora, até 20:00, Armazém Rebouças"><span class="hm-pin-in"><svg class="hm-pin-shape" viewBox="0 0 36 46" aria-hidden="true"><path d="M18 45C16.5 39 3 31 3 18a15 15 0 0 1 30 0c0 13-13.5 21-15 27z"/></svg><svg class="um-icon" aria-hidden="true"><use href="#i-feira"/></svg></span></button>
+      <button class="hm-pin" type="button" style="--x:46.5%;--y:40%" data-pin="jazz" aria-pressed="true" aria-label="Jazz no Largo — hoje, 20:30, Largo da Ordem"><span class="hm-pin-in"><svg class="hm-pin-shape" viewBox="0 0 36 46" aria-hidden="true"><path d="M18 45C16.5 39 3 31 3 18a15 15 0 0 1 30 0c0 13-13.5 21-15 27z"/></svg><svg class="um-icon" aria-hidden="true"><use href="#i-music"/></svg></span></button>
+
+      <div class="hm-tip" style="--x:46.5%;--y:40%" aria-hidden="true" data-tip><b data-tip-t>Jazz no Largo</b><span class="tnum" data-tip-h>20:30</span></div>
+    </div>
+
+    <div class="hm-status" role="status"><span class="hm-spin" aria-hidden="true"></span>Carregando eventos…</div>
+    <div class="hm-zoom" role="group" aria-label="Zoom do mapa">
+      <button type="button" aria-label="Aproximar"><svg class="um-icon" aria-hidden="true"><use href="#i-plus"/></svg></button>
+      <button type="button" aria-label="Afastar"><svg class="um-icon" aria-hidden="true"><use href="#i-minus"/></svg></button>
+    </div>
+    <button class="um-btn um-btn-outline hm-locate" type="button" data-locate><svg class="um-icon" aria-hidden="true"><use href="#i-locate"/></svg>Perto de mim</button>
+    <span class="hm-credit">Mapa ilustrativo do conceito · no app: © OpenStreetMap</span>
+  </div>
+
+  <!-- TOPO: busca + filtros -->
+  <div class="hm-top">
+    <header class="hm-header">
+      <a class="um-logo" href="#" aria-label="UMURA — início"><svg aria-hidden="true"><use href="#um-symbol"/></svg><b>UMURA</b></a>
+      <form class="hm-search" role="search" onsubmit="return false">
+        <label class="um-visually-hidden" for="hm-busca">Buscar eventos</label>
+        <svg class="um-icon" aria-hidden="true"><use href="#i-search"/></svg>
+        <input id="hm-busca" type="search" placeholder="Evento, lugar ou bairro" autocomplete="off" enterkeyhint="search">
+      </form>
+      <nav class="hm-navtop" aria-label="Principal">
+        <a href="#" aria-current="page"><svg class="um-icon" aria-hidden="true"><use href="#i-map"/></svg>Mapa</a>
+        <a href="#"><svg class="um-icon" aria-hidden="true"><use href="#i-calendar"/></svg>Eventos</a>
+        <a href="#"><svg class="um-icon" aria-hidden="true"><use href="#i-heart"/></svg>Favoritos</a>
+      </nav>
+      <div class="hm-actions">
+        <button class="um-btn um-btn-ghost um-btn-icon hm-only-lg" type="button" data-um-tema-toggle aria-label="Usar tema escuro"><svg class="um-icon" aria-hidden="true"><use href="#i-moon"/></svg></button>
+        <a class="um-btn um-btn-outline hm-only-lg" href="#">Sou produtor</a>
+        <a class="um-btn um-btn-icon hm-avatar" href="#" aria-label="Entrar ou criar conta"><svg class="um-icon" aria-hidden="true"><use href="#i-user"/></svg></a>
+      </div>
+    </header>
+
+    <div class="hm-chips" role="group" aria-label="Filtrar eventos">
+      <button class="um-chip" type="button" aria-pressed="true" data-quando="hoje"><span class="um-dot-now" aria-hidden="true"></span>Hoje</button>
+      <button class="um-chip" type="button" aria-pressed="false" data-quando="fds">Fim de semana</button>
+      <button class="um-chip" type="button" aria-pressed="false" data-um-chip><svg class="um-icon" aria-hidden="true"><use href="#i-music"/></svg>Shows</button>
+      <button class="um-chip" type="button" aria-pressed="false" data-um-chip><svg class="um-icon" aria-hidden="true"><use href="#i-festa"/></svg>Festas</button>
+      <button class="um-chip" type="button" aria-pressed="false" data-um-chip><svg class="um-icon" aria-hidden="true"><use href="#i-feira"/></svg>Feiras</button>
+      <button class="um-chip" type="button" aria-pressed="false" data-um-chip><svg class="um-icon" aria-hidden="true"><use href="#i-expo"/></svg>Exposições</button>
+      <button class="um-chip" type="button" aria-pressed="false" data-um-chip>Gratuito</button>
+    </div>
+  </div>
+
+  <!-- SHEET (mobile) / PAINEL (desktop) -->
+  <aside class="hm-panel" id="hm-panel" aria-label="Eventos de hoje">
+    <button class="hm-handle" type="button" aria-expanded="false" aria-controls="hm-panel" aria-label="Abrir a lista de eventos" data-handle></button>
+    <div class="hm-panel-scroll">
+
+      <div class="hm-loaded">
+        <article class="hm-sel" aria-live="polite" data-sel-card>
+          <div class="hm-sel-top">
+            <div class="um-media"><svg viewBox="0 0 160 90" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><use href="#art-jazz" data-s="art"/></svg></div>
+            <div class="hm-sel-body">
+              <p class="um-when tnum" data-s="when">Hoje · 20:30</p>
+              <h2 class="hm-sel-title" data-s="t">Jazz no Largo</h2>
+              <p class="um-where"><svg class="um-icon" aria-hidden="true"><use href="#i-pin"/></svg><span data-s="where">Largo da Ordem · 650 m</span></p>
+            </div>
+            <button class="um-btn um-btn-ghost um-btn-icon hm-sel-close" type="button" aria-label="Fechar evento selecionado" data-close><svg class="um-icon" aria-hidden="true"><use href="#i-close"/></svg></button>
+          </div>
+          <div class="hm-sel-badges" data-s="badges"><span class="hm-cat"><svg class="um-icon" aria-hidden="true"><use href="#i-music"/></svg>Shows</span><span class="um-badge um-badge-free">Gratuito</span><span class="um-badge um-badge-success"><svg class="um-icon" aria-hidden="true"><use href="#i-verified"/></svg>Verificado</span></div>
+          <div class="hm-sel-actions">
+            <a class="um-btn um-btn-primary" href="evento.html">Ver evento<svg class="um-icon" aria-hidden="true"><use href="#i-chevron-right"/></svg></a>
+            <button class="um-btn um-btn-outline um-btn-icon" type="button" aria-pressed="false" aria-label="Salvar nos favoritos" data-um-fav><svg class="um-icon" aria-hidden="true"><use href="#i-heart"/></svg></button>
+            <button class="um-btn um-btn-outline um-btn-icon" type="button" aria-label="Compartilhar" data-share><svg class="um-icon" aria-hidden="true"><use href="#i-share"/></svg></button>
+          </div>
+        </article>
+
+        <div class="hm-list-head">
+          <div><h2 data-head-t>Também hoje por perto</h2><p class="um-meta tnum" data-head-s>17 eventos · domingo, 18 out</p></div>
+          <button class="um-btn um-btn-ghost hm-sort" type="button" aria-label="Ordenar: mais perto">Mais perto<svg class="um-icon" aria-hidden="true"><use href="#i-chevron-down"/></svg></button>
+        </div>
+
+        <ul class="hm-list" role="list">
+          <li data-li="jazz" hidden><article class="um-evento um-evento-row" data-row="jazz">
+            <div class="um-media"><svg viewBox="0 0 160 90" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><use href="#art-jazz"/></svg></div>
+            <div class="um-evento-body"><p class="um-when tnum">Hoje · 20:30</p><h3 class="um-evento-title"><a href="evento.html">Jazz no Largo</a></h3><p class="um-where"><svg class="um-icon" aria-hidden="true"><use href="#i-pin"/></svg>Largo da Ordem · 650 m</p>
+              <div class="hm-row-foot"><span class="hm-cat"><svg class="um-icon" aria-hidden="true"><use href="#i-music"/></svg>Shows</span><span class="um-badge um-badge-free">Gratuito</span></div></div>
+          </article></li>
+          <li data-li="festa"><article class="um-evento um-evento-row" data-row="festa">
+            <div class="um-media"><svg viewBox="0 0 160 90" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><use href="#art-festa"/></svg></div>
+            <div class="um-evento-body"><p class="um-when tnum">Hoje · 23:00</p><h3 class="um-evento-title"><a href="evento.html">Umbral — noite de techno</a></h3><p class="um-where"><svg class="um-icon" aria-hidden="true"><use href="#i-pin"/></svg>Casa Lúmen · 900 m</p>
+              <div class="hm-row-foot"><span class="hm-cat"><svg class="um-icon" aria-hidden="true"><use href="#i-festa"/></svg>Festas</span><span class="um-price tnum">R$ 30</span></div></div>
+          </article></li>
+          <li data-li="cinema"><article class="um-evento um-evento-row" data-row="cinema">
+            <div class="um-media"><svg viewBox="0 0 160 90" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><use href="#art-cinema"/></svg></div>
+            <div class="um-evento-body"><p class="um-when tnum">Hoje · 21:00</p><h3 class="um-evento-title"><a href="evento.html">Clássicos no Passeio: 2001</a></h3><p class="um-where"><svg class="um-icon" aria-hidden="true"><use href="#i-pin"/></svg>Cine Passeio · 1,1 km</p>
+              <div class="hm-row-foot"><span class="hm-cat"><svg class="um-icon" aria-hidden="true"><use href="#i-cinema"/></svg>Cinema</span><span class="um-price tnum">R$ 10</span><span class="um-badge um-badge-success"><svg class="um-icon" aria-hidden="true"><use href="#i-verified"/></svg>Verificado</span></div></div>
+          </article></li>
+          <li data-li="expo"><article class="um-evento um-evento-row" data-row="expo">
+            <div class="um-media"><svg viewBox="0 0 160 90" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><use href="#art-expo"/></svg></div>
+            <div class="um-evento-body"><p class="um-when tnum">Hoje · 19:00</p><h3 class="um-evento-title"><a href="evento.html">Corpo Cidade — mostra coletiva</a></h3><p class="um-where"><svg class="um-icon" aria-hidden="true"><use href="#i-pin"/></svg>Galeria Alameda · 1,8 km</p>
+              <div class="hm-row-foot"><span class="hm-cat"><svg class="um-icon" aria-hidden="true"><use href="#i-expo"/></svg>Exposições</span><span class="um-badge um-badge-free">Gratuito</span></div></div>
+          </article></li>
+          <li data-li="feira"><article class="um-evento um-evento-row" data-row="feira">
+            <div class="um-media"><svg viewBox="0 0 160 90" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><use href="#art-feira"/></svg></div>
+            <div class="um-evento-body"><p class="um-when tnum"><span class="um-dot-now" aria-hidden="true"></span>Agora · até 20:00</p><h3 class="um-evento-title"><a href="evento.html">Feira do Vinil</a></h3><p class="um-where"><svg class="um-icon" aria-hidden="true"><use href="#i-pin"/></svg>Armazém Rebouças · 2,0 km</p>
+              <div class="hm-row-foot"><span class="hm-cat"><svg class="um-icon" aria-hidden="true"><use href="#i-feira"/></svg>Feiras</span><span class="um-badge um-badge-free">Gratuito</span></div></div>
+          </article></li>
+          <li data-li="opera"><article class="um-evento um-evento-row" data-row="opera">
+            <div class="um-media"><svg viewBox="0 0 160 90" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><use href="#art-opera"/></svg></div>
+            <div class="um-evento-body"><p class="um-when tnum">Hoje · 19:30</p><h3 class="um-evento-title"><a href="evento.html">Sinfonia das Araucárias</a></h3><p class="um-where"><svg class="um-icon" aria-hidden="true"><use href="#i-pin"/></svg>Ópera de Arame · 4,3 km</p>
+              <div class="hm-row-foot"><span class="hm-cat"><svg class="um-icon" aria-hidden="true"><use href="#i-music"/></svg>Shows</span><span class="um-price tnum">R$ 40 – 90</span></div></div>
+          </article></li>
+        </ul>
+        <a class="um-btn um-btn-outline um-btn-block hm-more" href="#">Ver os 18 eventos de hoje em lista</a>
+      </div>
+
+      <div class="hm-loading" aria-busy="true" aria-label="Carregando eventos">
+        <div class="hm-list-head"><div style="flex:1"><div class="um-skel" style="height:20px;width:58%"></div><div class="um-skel" style="height:12px;width:38%;margin-top:9px"></div></div></div>
+        <div class="hm-skel-row"><div class="um-skel" style="aspect-ratio:16/9"></div><div class="hm-skel-lines"><div class="um-skel" style="height:11px;width:42%"></div><div class="um-skel" style="height:16px;width:88%"></div><div class="um-skel" style="height:11px;width:62%"></div></div></div>
+        <div class="hm-skel-row"><div class="um-skel" style="aspect-ratio:16/9"></div><div class="hm-skel-lines"><div class="um-skel" style="height:11px;width:36%"></div><div class="um-skel" style="height:16px;width:74%"></div><div class="um-skel" style="height:11px;width:55%"></div></div></div>
+        <div class="hm-skel-row"><div class="um-skel" style="aspect-ratio:16/9"></div><div class="hm-skel-lines"><div class="um-skel" style="height:11px;width:40%"></div><div class="um-skel" style="height:16px;width:80%"></div><div class="um-skel" style="height:11px;width:50%"></div></div></div>
+      </div>
+
+      <div class="hm-empty um-empty" role="status">
+        <span class="um-empty-icon"><svg class="um-icon" aria-hidden="true"><use href="#i-calendar"/></svg></span>
+        <h2>Nenhum evento hoje por aqui</h2>
+        <p>Veja o fim de semana — já tem 23 eventos marcados em Curitiba.</p>
+        <div class="hm-empty-actions">
+          <button class="um-btn um-btn-primary" type="button" data-quando-go="fds">Ver o fim de semana</button>
+          <button class="um-btn um-btn-ghost" type="button">Ampliar a área</button>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- BOTTOM-NAV (mobile) -->
+  <nav class="hm-nav" aria-label="Navegação principal">
+    <a href="#" aria-current="page"><span class="ic"><svg class="um-icon" aria-hidden="true"><use href="#i-map"/></svg></span>Mapa</a>
+    <a href="#"><span class="ic"><svg class="um-icon" aria-hidden="true"><use href="#i-calendar"/></svg></span>Eventos</a>
+    <a href="#"><span class="ic"><svg class="um-icon" aria-hidden="true"><use href="#i-heart"/></svg></span>Favoritos</a>
+    <a href="#"><span class="ic"><svg class="um-icon" aria-hidden="true"><use href="#i-user"/></svg></span>Conta</a>
+  </nav>
+</div>
+</div>
+
+<div class="um-toasts" aria-live="polite" data-um-toasts></div>
+
+<!-- ANEXO DO CONCEITO: estados (não vai pro app) -->
+<section class="hm-annex">
+  <div class="um-container">
+    <div class="um-sec-head">
+      <div class="um-eyebrow">Conceito · Home (/)</div>
+      <h2>Estados do mapa</h2>
+      <p class="um-sec-sub">A mesma tela em outros momentos. O HTML é navegável: toque nos pinos, nos chips, na alça do sheet e no ♡.</p>
+    </div>
+    <div class="hm-ctrl">
+      <button class="um-btn um-btn-outline" type="button" data-um-tema-toggle aria-label="Usar tema escuro"><svg class="um-icon" aria-hidden="true"><use href="#i-moon"/></svg>Alternar tema</button>
+      <a class="um-btn um-btn-ghost" href="?estado=lista">Lista aberta</a>
+      <a class="um-btn um-btn-ghost" href="?estado=carregando">Carregando</a>
+      <a class="um-btn um-btn-ghost" href="?estado=vazio">Vazio</a>
+    </div>
+    <div class="hm-frames">
+      <figure><div class="hm-frame" data-frame="lista"></div>
+        <figcaption><b>Lista aberta</b><span>Puxou a alça: o sheet sobe (400ms, curva iOS) e vira lista rolável dos 6 eventos mais perto.</span></figcaption></figure>
+      <figure><div class="hm-frame" data-frame="carregando"></div>
+        <figcaption><b>Carregando</b><span>Mapa aparece na hora; pinos e lista chegam do /api/mapa/eventos com skeleton (nunca tela branca).</span></figcaption></figure>
+      <figure><div class="hm-frame" data-frame="vazio"></div>
+        <figcaption><b>Vazio</b><span>Sem evento hoje na área: a saída é o fim de semana, com 1 CTA primário.</span></figcaption></figure>
+    </div>
+    <ul class="hm-notes">
+      <li><b>Coral só onde é "agora".</b> Pino selecionado, traço do card aberto, ponto do chip "Hoje" e do evento acontecendo agora. Nenhum texto em coral.</li>
+      <li><b>Categoria = ícone + texto,</b> nunca cor: o pino carrega o ícone da categoria e todos os pinos são Deep Green.</li>
+      <li><b>Mapa calmo.</b> Fundo Off White/verde-cinza pra o pino ser a coisa mais forte da tela; no app isso pede tile "smooth" ou filtro no tile do OSM.</li>
+      <li><b>Movimento:</b> busca → chips → pinos caem em stagger (o único da tela) → sheet sobe. O ponto azul "você" pulsa porque é estado real (GPS).</li>
+    </ul>
+  </div>
+</section>
+
+<script>
+/* ==== MOTION:INICIO ==== */
+/* umura-motion (inline no conceito; no app vira wwwroot/js/umura-motion.js, cópia do mypods-motion.js com data-um-*)
+   data-um-motion="hero" + filhos [data-um-hero-item="eyebrow|display|sub|cta|trust|media"]
+   data-um-motion="reveal" [data-um-y] · "reveal-group" (filhos diretos) · "card-in" · "counter" [data-um-to/-from/-prefix/-suffix/-decimals] */
+(function () {
+  "use strict";
+  var root = document.documentElement;
+  var reduce = window.matchMedia("(prefers-reduced-motion: reduce)");
+  var gsap = window.gsap, hasST = !!window.ScrollTrigger;
+  var on = !!gsap && root.classList.contains("um-motion") && !reduce.matches;
+  if (gsap && hasST) gsap.registerPlugin(window.ScrollTrigger);
+
+  var presets = {
+    hero: function (el) {
+      var items = el.querySelectorAll("[data-um-hero-item]");
+      var tl = gsap.timeline({ defaults: { ease: "power3.out" } });
+      items.forEach(function (item, i) {
+        var k = item.getAttribute("data-um-hero-item");
+        if (k === "display") tl.fromTo(item, { autoAlpha: 0, y: 28, filter: "blur(6px)" }, { autoAlpha: 1, y: 0, filter: "blur(0px)", duration: 0.7, clearProps: "filter" }, i ? "-=0.15" : 0);
+        else if (k === "cta") tl.fromTo(item, { autoAlpha: 0, y: 16 }, { autoAlpha: 1, y: 0, duration: 0.45, ease: "back.out(1.4)" }, "-=0.25");
+        else if (k === "media") tl.fromTo(item, { autoAlpha: 0, scale: 0.96 }, { autoAlpha: 1, scale: 1, duration: 0.8 }, "<");
+        else tl.fromTo(item, { autoAlpha: 0, y: 12 }, { autoAlpha: 1, y: 0, duration: k === "eyebrow" ? 0.4 : 0.5 }, i ? "-=0.3" : 0);
+      });
+    },
+    reveal: function (el) {
+      var y = parseFloat(el.getAttribute("data-um-y") || "24");
+      var vars = { autoAlpha: 1, y: 0, duration: 0.6, ease: "power2.out", overwrite: "auto" };
+      gsap.set(el, { autoAlpha: 0, y: y });
+      if (hasST) vars.scrollTrigger = { trigger: el, start: "top 88%", once: true };
+      gsap.to(el, vars);
+    },
+    "reveal-group": function (el) {
+      var kids = Array.prototype.slice.call(el.children);
+      if (!kids.length) return;
+      gsap.set(kids, { autoAlpha: 0, y: 24 });
+      if (hasST) window.ScrollTrigger.batch(kids, { start: "top 88%", once: true, onEnter: function (b) { gsap.to(b, { autoAlpha: 1, y: 0, duration: 0.6, ease: "power2.out", stagger: 0.1, overwrite: true }); } });
+      else gsap.to(kids, { autoAlpha: 1, y: 0, duration: 0.6, ease: "power2.out", stagger: 0.1 });
+    },
+    "card-in": function (el) { gsap.fromTo(el, { autoAlpha: 0, y: 12 }, { autoAlpha: 1, y: 0, duration: 0.35, ease: "power2.out" }); },
+    counter: function (el) {
+      var to = parseFloat(el.getAttribute("data-um-to") || "0"), from = parseFloat(el.getAttribute("data-um-from") || "0");
+      var dec = parseInt(el.getAttribute("data-um-decimals") || "0", 10), pre = el.getAttribute("data-um-prefix") || "", suf = el.getAttribute("data-um-suffix") || "";
+      var o = { v: from }, render = function () { el.textContent = pre + o.v.toLocaleString("pt-BR", { minimumFractionDigits: dec, maximumFractionDigits: dec }) + suf; };
+      var run = function () { render(); gsap.to(o, { v: to, duration: 1.1, ease: "power1.out", onUpdate: render, onComplete: render }); };
+      if (hasST) window.ScrollTrigger.create({ trigger: el, start: "top 92%", once: true, onEnter: run }); else run();
+    }
+  };
+  function scan(scope) {
+    if (!on) return;
+    (scope || document).querySelectorAll("[data-um-motion]:not([data-um-bound])").forEach(function (el) {
+      el.setAttribute("data-um-bound", "1");
+      var fn = presets[el.getAttribute("data-um-motion")];
+      if (fn) try { fn(el); } catch (e) { console.warn("[um-motion]", e); }
+    });
+  }
+  function crossfade(a, b) {
+    if (!on) { if (a) a.hidden = true; if (b) b.hidden = false; return; }
+    if (a) gsap.to(a, { autoAlpha: 0, duration: 0.2, onComplete: function () { a.hidden = true; gsap.set(a, { clearProps: "all" }); } });
+    if (b) { b.hidden = false; gsap.fromTo(b, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.25, ease: "power1.out" }); }
+  }
+  /* toast: entra y16 250ms, vive 4s, sai 200ms */
+  function toast(msg, action) {
+    var region = document.querySelector("[data-um-toasts]"); if (!region) return;
+    var el = document.createElement("div"); el.className = "um-toast"; el.setAttribute("role", "status");
+    el.innerHTML = '<svg class="um-icon" aria-hidden="true"><use href="#i-check"/></svg><span></span>' + (action ? '<button type="button"></button>' : "");
+    el.querySelector("span").textContent = msg; if (action) el.querySelector("button").textContent = action;
+    region.appendChild(el);
+    var bye = function () { if (on) gsap.to(el, { autoAlpha: 0, y: -8, duration: 0.2, ease: "power2.in", onComplete: function () { el.remove(); } }); else el.remove(); };
+    if (action) el.querySelector("button").addEventListener("click", bye);
+    if (on) gsap.fromTo(el, { autoAlpha: 0, y: 16 }, { autoAlpha: 1, y: 0, duration: 0.25, ease: "power2.out" });
+    setTimeout(bye, 4000);
+  }
+  /* tema: claro padrão · escuro por SO ou toggle (lembra no localStorage) */
+  function temaAtual() { var t = root.getAttribute("data-theme"); return t || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"); }
+  function syncToggles() {
+    var dark = temaAtual() === "dark";
+    document.querySelectorAll("[data-um-tema-toggle]").forEach(function (b) {
+      b.setAttribute("aria-label", dark ? "Usar tema claro" : "Usar tema escuro");
+      var u = b.querySelector("use"); if (u) u.setAttribute("href", dark ? "#i-sun" : "#i-moon");
+    });
+  }
+  function setTema(t) {
+    root.setAttribute("data-theme", t);
+    try { localStorage.setItem("um-tema", t); } catch (e) {}
+    document.querySelectorAll("iframe").forEach(function (f) { try { f.contentWindow.postMessage({ umTema: t }, "*"); } catch (e) {} });
+    syncToggles();
+  }
+  window.addEventListener("message", function (e) { if (e.data && (e.data.umTema === "dark" || e.data.umTema === "light")) { root.setAttribute("data-theme", e.data.umTema); syncToggles(); } });
+  document.addEventListener("click", function (e) {
+    var t = e.target.closest("[data-um-tema-toggle]"); if (t) { setTema(temaAtual() === "dark" ? "light" : "dark"); return; }
+    var c = e.target.closest("[data-um-chip]"); if (c) { c.setAttribute("aria-pressed", c.getAttribute("aria-pressed") === "true" ? "false" : "true"); return; }
+    var f = e.target.closest("[data-um-fav]");
+    if (f) { var p = f.getAttribute("aria-pressed") === "true"; f.setAttribute("aria-pressed", p ? "false" : "true"); if (!p) toast("Evento salvo nos favoritos", "Desfazer"); }
+  });
+  window.umMotion = { on: on, scan: scan, crossfade: crossfade, toast: toast, setTema: setTema };
+  window.umToast = toast;
+  function boot() { syncToggles(); scan(); }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot); else boot();
+  if (document.fonts && document.fonts.ready && on && hasST) document.fonts.ready.then(function () { window.ScrollTrigger.refresh(); });
+})();
+/* ==== MOTION:FIM ==== */
+</script>
+<script>
+/* comportamento do conceito da home */
+(function () {
+  "use strict";
+  var app = document.getElementById("hm-app");
+  var q = new URLSearchParams(location.search);
+  var motion = window.umMotion && window.umMotion.on;
+
+  /* altura da "tela" em px (100vh/svh estica em print full-page) */
+  function setH() { app.style.setProperty("--hm-h", window.innerHeight + "px"); }
+  setH();
+  var t; window.addEventListener("resize", function () { clearTimeout(t); t = setTimeout(setH, 150); });
+
+  var EV = {
+    jazz:   { t: "Jazz no Largo", when: "Hoje · 20:30", h: "20:30", where: "Largo da Ordem · 650 m", art: "art-jazz", cat: ["i-music", "Shows"], b: '<span class="um-badge um-badge-free">Gratuito</span><span class="um-badge um-badge-success"><svg class="um-icon" aria-hidden="true"><use href="#i-verified"/></svg>Verificado</span>' },
+    festa:  { t: "Umbral — noite de techno", when: "Hoje · 23:00", h: "23:00", where: "Casa Lúmen · 900 m", art: "art-festa", cat: ["i-festa", "Festas"], b: '<span class="um-price tnum">R$ 30</span>' },
+    cinema: { t: "Clássicos no Passeio: 2001", when: "Hoje · 21:00", h: "21:00", where: "Cine Passeio · 1,1 km", art: "art-cinema", cat: ["i-cinema", "Cinema"], b: '<span class="um-price tnum">R$ 10</span><span class="um-badge um-badge-success"><svg class="um-icon" aria-hidden="true"><use href="#i-verified"/></svg>Verificado</span>' },
+    expo:   { t: "Corpo Cidade — mostra coletiva", when: "Hoje · 19:00", h: "19:00", where: "Galeria Alameda · 1,8 km", art: "art-expo", cat: ["i-expo", "Exposições"], b: '<span class="um-badge um-badge-free">Gratuito</span>' },
+    feira:  { t: "Feira do Vinil", when: '<span class="um-dot-now" aria-hidden="true"></span>Agora · até 20:00', h: "até 20:00", where: "Armazém Rebouças · 2,0 km", art: "art-feira", cat: ["i-feira", "Feiras"], b: '<span class="um-badge um-badge-free">Gratuito</span>' },
+    opera:  { t: "Sinfonia das Araucárias", when: "Hoje · 19:30", h: "19:30", where: "Ópera de Arame · 4,3 km", art: "art-opera", cat: ["i-music", "Shows"], b: '<span class="um-price tnum">R$ 40 – 90</span>' }
+  };
+  var card = app.querySelector("[data-sel-card]");
+  var tip = app.querySelector("[data-tip]");
+
+  /* clona a tela ANTES da coreografia pros quadros de estado do anexo */
+  var frames = [];
+  if (q.get("embed") !== "1") document.querySelectorAll("[data-frame]").forEach(function (f) {
+    var c = app.cloneNode(true);
+    c.removeAttribute("id"); c.classList.remove("is-intro");
+    c.querySelectorAll("[id]").forEach(function (n) { n.removeAttribute("id"); });
+    c.setAttribute("inert", ""); c.setAttribute("aria-hidden", "true");
+    c.style.setProperty("--hm-h", f.clientHeight + "px");
+    f.appendChild(c); frames.push([c, f.getAttribute("data-frame")]);
+  });
+
+  function select(id, root) {
+    root = root || app;
+    var app_ = root;
+    if (id && !EV[id]) id = "";
+    app_.setAttribute("data-sel", id);
+    app_.querySelectorAll("[data-pin]").forEach(function (p) { p.setAttribute("aria-pressed", p.getAttribute("data-pin") === id ? "true" : "false"); });
+    app_.querySelectorAll("[data-li]").forEach(function (li) { li.hidden = li.getAttribute("data-li") === id; });
+    app_.querySelector("[data-head-t]").textContent = id ? "Também hoje por perto" : "Hoje em Curitiba";
+    app_.querySelector("[data-head-s]").textContent = (id ? "17 eventos" : "18 eventos") + " · domingo, 18 out";
+    if (!id || root !== app) return;
+    var e = EV[id], pin = app.querySelector('[data-pin="' + id + '"]');
+    card.querySelector('[data-s="art"]').setAttribute("href", "#" + e.art);
+    card.querySelector('[data-s="when"]').innerHTML = e.when;
+    card.querySelector('[data-s="t"]').textContent = e.t;
+    card.querySelector('[data-s="where"]').textContent = e.where;
+    card.querySelector('[data-s="badges"]').innerHTML = '<span class="hm-cat"><svg class="um-icon" aria-hidden="true"><use href="#' + e.cat[0] + '"/></svg>' + e.cat[1] + "</span>" + e.b;
+    tip.style.setProperty("--x", pin.style.getPropertyValue("--x"));
+    tip.style.setProperty("--y", pin.style.getPropertyValue("--y"));
+    tip.querySelector("[data-tip-t]").textContent = e.t;
+    tip.querySelector("[data-tip-h]").textContent = e.h;
+    if (motion) window.gsap.fromTo(card, { autoAlpha: 0, y: 8 }, { autoAlpha: 1, y: 0, duration: 0.25, ease: "power2.out", overwrite: true });
+  }
+  function sheet(state, root) {
+    root = root || app;
+    root.setAttribute("data-sheet", state);
+    var h = root.querySelector("[data-handle]");
+    if (root !== app) return;
+    h.setAttribute("aria-expanded", state === "full" ? "true" : "false");
+    h.setAttribute("aria-label", state === "full" ? "Recolher a lista de eventos" : "Abrir a lista de eventos");
+    if (state === "half") app.querySelector(".hm-panel-scroll").scrollTop = 0;
+  }
+
+  /* estado inicial pela URL */
+  var estado = q.get("estado") || "normal";
+  app.setAttribute("data-estado", estado === "lista" ? "normal" : estado);
+  sheet(estado === "lista" ? "full" : "half");
+  select(q.has("sel") ? q.get("sel") : (estado === "normal" ? "jazz" : ""));
+  frames.forEach(function (fr) {
+    var c = fr[0], st = fr[1];
+    c.setAttribute("data-estado", st === "lista" ? "normal" : st);
+    sheet(st === "lista" ? "full" : "half", c);
+    select("", c);
+  });
+
+  app.addEventListener("click", function (e) {
+    var p = e.target.closest("[data-pin]");
+    if (p) { select(p.getAttribute("data-pin")); sheet("half"); return; }
+    if (e.target.closest("[data-close]")) { select(""); return; }
+    if (e.target.closest("[data-handle]")) { sheet(app.getAttribute("data-sheet") === "full" ? "half" : "full"); return; }
+    if (e.target.closest("[data-locate]")) { window.umToast && umToast("Mostrando o que rola a até 2 km de você"); return; }
+    if (e.target.closest("[data-cluster]")) { window.umToast && umToast("No app: o mapa aproxima e abre os 12 eventos da região"); return; }
+    if (e.target.closest("[data-share]")) { window.umToast && umToast("Link do evento copiado"); return; }
+    var qd = e.target.closest("[data-quando]");
+    if (qd) { app.querySelectorAll("[data-quando]").forEach(function (c) { c.setAttribute("aria-pressed", c === qd ? "true" : "false"); }); return; }
+    var go = e.target.closest("[data-quando-go]");
+    if (go) { app.querySelectorAll("[data-quando]").forEach(function (c) { c.setAttribute("aria-pressed", c.getAttribute("data-quando") === "fds" ? "true" : "false"); }); app.setAttribute("data-estado", "normal"); select(""); }
+  });
+  /* desktop: passar o mouse na lista acende o pino */
+  app.querySelectorAll("[data-row]").forEach(function (r) {
+    var pin = app.querySelector('[data-pin="' + r.getAttribute("data-row") + '"]');
+    r.addEventListener("mouseenter", function () { pin && pin.classList.add("is-hover"); });
+    r.addEventListener("mouseleave", function () { pin && pin.classList.remove("is-hover"); });
+  });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && app.getAttribute("data-sheet") === "full") sheet("half"); });
+
+  /* coreografia de entrada (vitrine): busca → chips → sheet sobe → pinos em stagger */
+  if (motion) {
+    var gsap = window.gsap;
+    var tl = gsap.timeline({ defaults: { ease: "power3.out" } });
+    var $ = function (sel) { return app.querySelectorAll(sel); };
+    tl.fromTo($(".hm-header"), { autoAlpha: 0, y: -10 }, { autoAlpha: 1, y: 0, duration: 0.4 })
+      .fromTo($(".hm-chips"), { autoAlpha: 0, y: -8 }, { autoAlpha: 1, y: 0, duration: 0.35 }, "-=0.25")
+      .add(function () { app.classList.remove("is-intro"); }, "-=0.15")
+      .fromTo($(".hm-pin, .hm-cluster"), { autoAlpha: 0, y: -14 }, { autoAlpha: 1, y: 0, duration: 0.45, stagger: 0.05 }, "<")
+      .fromTo($(".hm-me"), { autoAlpha: 0, scale: 0.9 }, { autoAlpha: 1, scale: 1, duration: 0.3, clearProps: "transform" }, "-=0.2");
+  } else {
+    app.classList.remove("is-intro");
+  }
+})();
+</script>
+</body>
+</html>

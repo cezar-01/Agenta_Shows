@@ -1,23 +1,22 @@
 ﻿@inherits LayoutComponentBase
 
-<div class="page">
-    <div class="sidebar">
-        <NavMenu />
-    </div>
+<a class="um-skip" href="#conteudo">Pular para o conteúdo</a>
 
-    <main>
-        <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
-        </div>
+<div class="um-shell">
+    <SiteHeader />
 
-        <article class="content px-4">
-            @Body
-        </article>
+    @* O header é fixed: quem reserva a altura dele (e a da barra de baixo) é o padding do .um-main. *@
+    <main id="conteudo" class="um-main" tabindex="-1">
+        @Body
     </main>
+
+    <SiteFooter />
 </div>
 
+<BottomNav />
+
 <div id="blazor-error-ui" data-nosnippet>
-    An unhandled error has occurred.
-    <a href="." class="reload">Reload</a>
-    <span class="dismiss">🗙</span>
+    Algo deu errado.
+    <a href="." class="reload">Recarregar</a>
+    <span class="dismiss" role="button" tabindex="0" aria-label="Fechar">×</span>
 </div>

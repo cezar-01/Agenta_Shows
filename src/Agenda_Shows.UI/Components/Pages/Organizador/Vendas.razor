@@ -1,0 +1,397 @@
+@page "/organizador/evento/{Id:int}/vendas"
+@attribute [Authorize(Roles = Papeis.OrganizadorOuAdmin)]
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@using System.Globalization
+@inject IAreaDoOrganizador Area
+@inject TimeProvider Relogio
+@inject ILogger<Vendas> Log
+
+@* As vendas de um evento e a portaria: o organizador digita o código do ingresso e o serviço libera a entrada uma
+   vez só. Do comprador aparece só o nome — o organizador não precisa do contato de ninguém para validar ingresso. *@
+
+<PageTitle>@(dados is null ? "Vendas" : $"Vendas de {dados.Evento.Titulo}") · UMURA</PageTitle>
+
+<div class="um-container orgv">
+    @if (carregando)
+    {
+        <header class="um-pagina-cab">
+            <a href="/organizador" class="orgv-voltar">← Meus eventos</a>
+            <span class="um-eyebrow">Vendas e portaria</span>
+        </header>
+        <p class="um-visually-hidden" role="status">Carregando as vendas…</p>
+        <div class="um-kpis" aria-hidden="true">
+            @for (var i = 0; i < 4; i++)
+            {
+                <div class="um-kpi">
+                    <span class="um-skeleton orgv-sk-rotulo"></span>
+                    <span class="um-skeleton orgv-sk-valor"></span>
+                </div>
+            }
+        </div>
+    }
+    else if (dados is null)
+    {
+        <header class="um-pagina-cab">
+            <a href="/organizador" class="orgv-voltar">← Meus eventos</a>
+            <span class="um-eyebrow">Vendas e portaria</span>
+        </header>
+        @if (erroCarga is not null)
+        {
+            <div class="um-alert um-alert-danger" role="alert">
+                <div><b>Não deu para abrir as vendas.</b> @erroCarga</div>
+            </div>
+            <div>
+                <button type="button" class="um-btn um-btn-outline" @onclick="() => CarregarAsync(true)">Tentar de novo</button>
+            </div>
+        }
+        else
+        {
+            <div class="um-card um-empty">
+                <h1>Evento não encontrado</h1>
+                <p>Ele não existe ou não é um dos seus eventos.</p>
+                <a href="/organizador" class="um-btn um-btn-primary">Voltar aos meus eventos</a>
+            </div>
+        }
+    }
+    else
+    {
+        var ev = dados.Evento;
+        var (classeStatus, textoStatus) = StatusDe(ev);
+        var pctVendido = ev.Capacidade == 0 ? 0 : (int)Math.Round(ev.Vendidos * 100.0 / ev.Capacidade);
+        var pctEntrou = ev.Vendidos == 0 ? 0 : (int)Math.Round(dados.Entraram * 100.0 / ev.Vendidos);
+
+        <header class="um-pagina-cab orgv-cab">
+            <a href="/organizador" class="orgv-voltar">← Meus eventos</a>
+            <span class="um-eyebrow">Vendas e portaria</span>
+            <h1>@ev.Titulo</h1>
+            <p class="orgv-sub">
+                <span>@ev.Categoria · @BrazilTime.Format(ev.InicioUtc, "dd/MM HH:mm")</span>
+                <span class="um-badge @classeStatus">@textoStatus</span>
+            </p>
+            <div class="um-row orgv-acoes">
+                <button type="button" class="um-btn um-btn-outline" @onclick="() => CarregarAsync(false)" disabled="@atualizando">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M20 11a8 8 0 1 0-2.3 5.7" /><path d="M20 4v7h-7" />
+                    </svg>
+                    @(atualizando ? "Atualizando…" : "Atualizar")
+                </button>
+                <a href="@($"/organizador/evento/{ev.Id}")" class="um-btn um-btn-ghost">Editar evento</a>
+                @if (ev.Status != StatusDoEvento.Rascunho)
+                {
+                    <a href="@($"/evento/{ev.Slug}")" class="um-btn um-btn-ghost">Ver a página</a>
+                }
+                @if (atualizadoEm is { } quando)
+                {
+                    <span class="um-hint" role="status">Atualizado às @BrazilTime.Format(quando, "HH:mm")</span>
+                }
+            </div>
+        </header>
+
+        @if (erroCarga is not null)
+        {
+            <div class="um-alert um-alert-danger" role="alert">
+                <div><b>Não deu para atualizar.</b> @erroCarga Os números abaixo são da última leitura.</div>
+            </div>
+        }
+
+        <section aria-labelledby="orgv-resumo">
+            <h2 id="orgv-resumo" class="um-visually-hidden">Resumo do evento</h2>
+            <div class="um-kpis">
+                <div class="um-kpi">
+                    <span class="um-kpi-label">Vendidos</span>
+                    <span class="um-kpi-value">@Num(ev.Vendidos)<small class="orgv-de">/@Num(ev.Capacidade)</small></span>
+                    <span class="um-kpi-sub">@pctVendido% da capacidade (com reservas)</span>
+                </div>
+                <div class="um-kpi">
+                    <span class="um-kpi-label">Receita (simulada)</span>
+                    <span class="um-kpi-value orgv-dinheiro">@Dinheiro.Reais(ev.ReceitaCentavos)</span>
+                    <span class="um-kpi-sub">só pedidos pagos</span>
+                </div>
+                <div class="um-kpi">
+                    <span class="um-kpi-label">Entraram</span>
+                    <span class="um-kpi-value">@Num(dados.Entraram)</span>
+                    <span class="um-kpi-sub">@pctEntrou% dos vendidos fizeram check-in</span>
+                </div>
+                <div class="um-kpi">
+                    <span class="um-kpi-label">Visualizações</span>
+                    <span class="um-kpi-value">@Num(ev.Visualizacoes)</span>
+                    <span class="um-kpi-sub">da página do evento</span>
+                </div>
+            </div>
+        </section>
+
+        <section class="um-card orgv-porta" aria-labelledby="orgv-porta-t">
+            <div>
+                <h2 id="orgv-porta-t" class="orgv-h2">Validar ingresso na porta</h2>
+                <p class="um-hint orgv-sem-margem">Digite o código que está no ingresso (embaixo do QR). Cada ingresso entra uma vez só.</p>
+            </div>
+            <form class="orgv-porta-form" @onsubmit="ValidarAsync" @onsubmit:preventDefault>
+                <div class="um-field">
+                    <label class="um-label" for="orgv-codigo">Código do ingresso</label>
+                    <input @ref="campoCodigo" id="orgv-codigo" class="um-input orgv-codigo" @bind="codigo" @bind:event="oninput"
+                           autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" maxlength="16"
+                           enterkeyhint="go" placeholder="Ex.: K7M2Q9XR4T" />
+                </div>
+                <button type="submit" class="um-btn um-btn-primary um-btn-lg" disabled="@validando">
+                    @(validando ? "Validando…" : "Validar")
+                </button>
+            </form>
+            <div aria-live="polite">
+                @if (retorno is { } r)
+                {
+                    @if (r.Ok)
+                    {
+                        <div class="um-alert um-alert-success" role="status" @key="r.Tentativa">
+                            <div><b>Entrada liberada:</b> @r.Texto</div>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="um-alert um-alert-danger" role="alert" @key="r.Tentativa">
+                            <div><b>Não liberado.</b> @r.Texto</div>
+                        </div>
+                    }
+                }
+            </div>
+        </section>
+
+        <section class="orgv-bloco" aria-labelledby="orgv-pedidos">
+            <div class="orgv-sec-cab">
+                <h2 id="orgv-pedidos" class="orgv-h2">Pedidos</h2>
+                @if (dados.Pedidos.Count > 0)
+                {
+                    <span class="um-hint">
+                        @Num(dados.Pedidos.Count(p => p.Status == StatusDoPedido.Pago)) pagos ·
+                        @Num(dados.Pedidos.Count(p => p.Status == StatusDoPedido.AguardandoPagamento)) aguardando
+                    </span>
+                }
+            </div>
+
+            @if (dados.Pedidos.Count == 0)
+            {
+                <div class="um-card um-empty">
+                    <h3>Nenhum pedido ainda</h3>
+                    <p>Quando alguém comprar, o pedido aparece aqui. Divulgue o link do evento!</p>
+                </div>
+            }
+            else
+            {
+                <div class="um-table-wrap">
+                    <table class="um-table">
+                        <caption class="um-visually-hidden">Pedidos do evento, do mais novo para o mais antigo</caption>
+                        <thead>
+                            <tr>
+                                <th scope="col">Código</th>
+                                <th scope="col">Comprador</th>
+                                <th scope="col">Status</th>
+                                <th scope="col">Método</th>
+                                <th scope="col" class="num">Qtd</th>
+                                <th scope="col" class="num">Total</th>
+                                <th scope="col" class="num">Quando</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var p in dados.Pedidos)
+                            {
+                                var (classe, texto) = RotuloDoPedido(p.Status);
+                                <tr @key="p.Codigo">
+                                    <td data-rotulo="Código"><span class="um-mono">@p.Codigo</span></td>
+                                    <td data-rotulo="Comprador">@p.Comprador</td>
+                                    <td data-rotulo="Status"><span class="um-badge @classe">@texto</span></td>
+                                    <td data-rotulo="Método">@NomeDoMetodo(p.Metodo)</td>
+                                    <td data-rotulo="Qtd" class="num">@p.Quantidade</td>
+                                    <td data-rotulo="Total" class="num">@Dinheiro.Reais(p.TotalCentavos)</td>
+                                    <td data-rotulo="Quando" class="num">@BrazilTime.Format(p.CriadoEmUtc, "dd/MM HH:mm")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                @if (dados.Pedidos.Count >= LimiteDaLista)
+                {
+                    <span class="um-hint">Mostrando os @LimiteDaLista pedidos mais recentes.</span>
+                }
+            }
+        </section>
+    }
+</div>
+
+@code {
+    /// <summary>O serviço devolve no máximo esta quantidade de pedidos (os mais recentes).</summary>
+    private const int LimiteDaLista = 300;
+
+    private static readonly CultureInfo PtBr = CultureInfo.GetCultureInfo("pt-BR");
+
+    [Parameter] public int Id { get; set; }
+
+    [CascadingParameter] private Task<AuthenticationState>? Estado { get; set; }
+
+    private sealed record Retorno(bool Ok, string Texto, int Tentativa);
+
+    private VendasDoEvento? dados;
+    private bool carregando = true;
+    private bool atualizando;
+    private string? erroCarga;
+    private DateTime? atualizadoEm;
+
+    private string codigo = string.Empty;
+    private bool validando;
+    private Retorno? retorno;
+    private int tentativas;
+    private bool focarCampo;
+    private ElementReference campoCodigo;
+
+    private bool jaCarregou;
+    private int idCarregado;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (jaCarregou && idCarregado == Id) return;
+        jaCarregou = true;
+        idCarregado = Id;
+        dados = null;
+        retorno = null;
+        await CarregarAsync(true);
+    }
+
+    private async Task<ClaimsPrincipal> UsuarioAsync() =>
+        Estado is null ? new ClaimsPrincipal(new ClaimsIdentity()) : (await Estado).User;
+
+    /// <summary>Lê as vendas. No "Atualizar" a tela fica de pé (sem esqueleto) e só os números trocam.</summary>
+    private async Task CarregarAsync(bool comEsqueleto)
+    {
+        if (atualizando) return;
+        if (comEsqueleto) carregando = true; else atualizando = true;
+        erroCarga = null;
+        try
+        {
+            dados = await Area.VendasAsync(await UsuarioAsync(), Id);
+            atualizadoEm = dados is null ? null : Relogio.GetUtcNow().UtcDateTime;
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            erroCarga = ex.Message;
+        }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "Falha ao carregar as vendas do evento {Id}.", Id);
+            erroCarga = "As vendas não carregaram agora. Tente de novo em instantes.";
+        }
+        finally
+        {
+            carregando = false;
+            atualizando = false;
+        }
+    }
+
+    private async Task ValidarAsync()
+    {
+        if (validando) return;
+        var c = (codigo ?? string.Empty).Trim().ToUpperInvariant();
+        if (c.Length == 0)
+        {
+            retorno = new Retorno(false, "Digite o código do ingresso.", ++tentativas);
+            focarCampo = true;
+            return;
+        }
+
+        validando = true;
+        var liberou = false;
+        try
+        {
+            var r = await Area.ValidarIngressoAsync(await UsuarioAsync(), Id, c);
+            if (r.Ok && r.Valor is { } ingresso)
+            {
+                retorno = new Retorno(true, $"{ingresso.NomeDoTipo} · {ingresso.Codigo}", ++tentativas);
+                liberou = true;
+            }
+            else
+            {
+                retorno = new Retorno(false, $"{r.Erro ?? "Não deu para validar."} (código {c})", ++tentativas);
+            }
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            retorno = new Retorno(false, ex.Message, ++tentativas);
+        }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "Falha ao validar ingresso do evento {Id}.", Id);
+            retorno = new Retorno(false, "Não deu para validar agora. Tente de novo.", ++tentativas);
+        }
+        finally
+        {
+            validando = false;
+            codigo = string.Empty;
+            focarCampo = true;
+        }
+
+        // Entrou alguém: o "Entraram" sobe sem a pessoa da porta precisar tocar em "Atualizar".
+        if (liberou) await CarregarAsync(false);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // O campo limpo volta a ter o foco: a fila da porta não espera ninguém tocar na tela.
+        if (!focarCampo || dados is null) return;
+        focarCampo = false;
+        try
+        {
+            await campoCodigo.FocusAsync();
+        }
+        catch (JSException) { }
+        catch (InvalidOperationException) { }
+        catch (TaskCanceledException) { }
+    }
+
+    private (string Classe, string Texto) StatusDe(LinhaDoMeuEvento l)
+    {
+        if (l.Status == StatusDoEvento.Cancelado) return ("um-badge-danger", "Cancelado");
+        if (l.FimUtc <= Relogio.GetUtcNow().UtcDateTime) return ("", "Encerrado");
+        if (l.Status == StatusDoEvento.Rascunho) return ("um-badge-info", "Rascunho");
+        return ("um-badge-success", "Publicado");
+    }
+
+    private static (string Classe, string Texto) RotuloDoPedido(StatusDoPedido s) => s switch
+    {
+        StatusDoPedido.Pago => ("um-badge-success", "Pago"),
+        StatusDoPedido.AguardandoPagamento => ("um-badge-warning", "Aguardando pagamento"),
+        StatusDoPedido.Cancelado => ("um-badge-danger", "Cancelado"),
+        StatusDoPedido.Expirado => ("", "Expirado"),
+        _ => ("", s.ToString()),
+    };
+
+    private static string NomeDoMetodo(MetodoDePagamento m) => m switch
+    {
+        MetodoDePagamento.Pix => "Pix",
+        MetodoDePagamento.Cartao => "Cartão",
+        MetodoDePagamento.Gratuito => "Grátis",
+        _ => "—",
+    };
+
+    private static string Num(int n) => n.ToString("N0", PtBr);
+}
+
+<style>
+    .orgv { display: grid; gap: 1.25rem; padding-bottom: var(--um-sec-pad); }
+    .orgv-voltar { display: inline-flex; align-items: center; min-height: var(--um-tap); font-weight: 600; text-decoration: none; }
+    .orgv-sub { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+    .orgv-acoes { margin-top: 0.75rem; }
+    .orgv-h2 { margin: 0; font-size: clamp(1.15rem, 3.2vw, 1.4rem); }
+    .orgv-sem-margem { margin: 0.25rem 0 0; }
+    .orgv-bloco { display: grid; gap: 0.75rem; }
+    .orgv-sec-cab { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.5rem 1rem; }
+    .orgv-de { font-size: 0.55em; font-weight: 600; color: var(--um-ink-muted); }
+
+    .orgv .um-kpi-value { overflow-wrap: anywhere; }
+    .orgv-dinheiro { font-size: clamp(1.25rem, 3.6vw, 2rem); }
+
+    .orgv-sk-rotulo { display: block; width: 60%; height: 0.8rem; }
+    .orgv-sk-valor { display: block; width: 45%; height: 2rem; }
+
+    .orgv-porta { display: grid; gap: 0.75rem; }
+    .orgv-porta-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.75rem; }
+    .orgv-porta-form .um-field { flex: 1 1 14rem; }
+    .orgv-codigo { font-family: var(--um-mono); font-size: 1.125rem; letter-spacing: 0.12em; text-transform: uppercase; }
+    .orgv-codigo::placeholder { text-transform: none; letter-spacing: normal; }
+</style>

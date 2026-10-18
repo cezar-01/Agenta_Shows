@@ -1,0 +1,25 @@
+{
+  "id": "/",
+  "name": "UMURA — Um mapa vivo de Curitiba",
+  "short_name": "UMURA",
+  "description": "Shows, festas, feiras, teatro e a cena independente de Curitiba: veja o que está rolando agora, perto de você, e garanta o seu ingresso.",
+  "lang": "pt-BR",
+  "dir": "ltr",
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#EDECE7",
+  "theme_color": "#0B3C3F",
+  "categories": ["entertainment", "events", "lifestyle"],
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Ao vivo agora", "short_name": "Ao vivo", "url": "/eventos?quando=aovivo&source=pwa", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Mapa", "short_name": "Mapa", "url": "/mapa?source=pwa", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Meus ingressos", "short_name": "Ingressos", "url": "/meus-ingressos?source=pwa", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] }
+  ]
+}

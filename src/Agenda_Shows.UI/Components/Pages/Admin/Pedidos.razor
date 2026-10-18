@@ -1,0 +1,196 @@
+@page "/admin/pedidos"
+@attribute [Authorize(Roles = Papeis.Admin)]
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@using System.Globalization
+@inject IAreaDoAdmin Area
+@inject ILogger<Pedidos> Log
+
+@* Todos os pedidos de ingresso, de todo mundo (o pagamento é simulado). O código abre a página do pedido — o serviço de
+   pedidos deixa o admin ver qualquer um. *@
+
+<PageTitle>Pedidos (admin) · UMURA</PageTitle>
+
+<div class="um-container adp">
+    <header class="um-pagina-cab">
+        <a href="/admin" class="adp-voltar">Painel do admin</a>
+        <h1>Pedidos</h1>
+        <p>Todos os pedidos de ingresso, do mais novo para o mais antigo. O pagamento é de demonstração: nada foi cobrado.</p>
+    </header>
+
+    <form class="adp-busca" role="search" @onsubmit="BuscarAsync">
+        <label for="adp-q" class="um-visually-hidden">Buscar pedidos</label>
+        <div class="um-busca">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" />
+            </svg>
+            <input id="adp-q" type="search" @bind="busca" @bind:event="oninput" placeholder="Código, comprador, e-mail ou evento"
+                   maxlength="80" autocomplete="off" enterkeyhint="search" />
+            <button type="submit" class="um-btn um-btn-primary" disabled="@carregando">Buscar</button>
+        </div>
+    </form>
+
+    @if (erro is not null)
+    {
+        <div class="um-alert um-alert-danger" role="alert">
+            <div><b>Não deu para abrir os pedidos.</b> @erro</div>
+        </div>
+        <div>
+            <button type="button" class="um-btn um-btn-outline" @onclick="CarregarAsync">Tentar de novo</button>
+        </div>
+    }
+    else if (pedidos is null)
+    {
+        <p class="um-visually-hidden" role="status">Carregando os pedidos…</p>
+        <div class="um-card" aria-hidden="true"><span class="um-skeleton adp-sk"></span></div>
+    }
+    else if (pedidos.Count == 0)
+    {
+        <div class="um-card um-empty">
+            <h3>Nenhum pedido encontrado</h3>
+            <p>@(buscou is null ? "Ainda ninguém comprou ingresso." : $"Nada com “{buscou}”. Tente o código, o nome ou o e-mail de quem comprou.")</p>
+        </div>
+    }
+    else
+    {
+        <p class="um-hint adp-resumo" role="status">
+            @Num(pedidos.Count) @(pedidos.Count == 1 ? "pedido" : "pedidos")@(buscou is null ? "" : $" com “{buscou}”")
+            · @Num(Quantos(StatusDoPedido.Pago)) @(Quantos(StatusDoPedido.Pago) == 1 ? "pago" : "pagos")
+            · @Num(Quantos(StatusDoPedido.AguardandoPagamento)) aguardando pagamento
+            @(pedidos.Count >= Limite ? $" — mostrando os {Limite} mais recentes" : "")
+        </p>
+        <div class="um-table-wrap">
+            <table class="um-table adp-tabela">
+                <caption class="um-visually-hidden">Pedidos de ingresso, do mais novo para o mais antigo</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">Código</th>
+                        <th scope="col">Evento</th>
+                        <th scope="col">Comprador</th>
+                        <th scope="col">Status</th>
+                        <th scope="col">Método</th>
+                        <th scope="col" class="num">Total</th>
+                        <th scope="col">Criado em</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var p in pedidos)
+                    {
+                        var (classe, texto) = StatusDe(p.Status);
+                        var qtd = p.Itens.Sum(i => i.Quantidade);
+                        <tr @key="p.Codigo">
+                            <td>
+                                <a href="@($"/pedido/{Uri.EscapeDataString(p.Codigo)}")" class="um-mono adp-codigo">@p.Codigo<span class="um-visually-hidden">, abrir o pedido</span></a>
+                            </td>
+                            <td data-rotulo="Evento">
+                                <span class="adp-ev">
+                                    <b>@p.EventoTitulo</b>
+                                    <small>@Num(qtd) @(qtd == 1 ? "ingresso" : "ingressos")</small>
+                                </span>
+                            </td>
+                            <td data-rotulo="Comprador">
+                                <span class="adp-quem">
+                                    <span>@p.Comprador</span>
+                                    <small>@p.CompradorEmail</small>
+                                </span>
+                            </td>
+                            <td data-rotulo="Status"><span class="um-badge @classe">@texto</span></td>
+                            <td data-rotulo="Método">@MetodoDe(p)</td>
+                            <td data-rotulo="Total" class="num">@Dinheiro.Reais(p.TotalCentavos)</td>
+                            <td data-rotulo="Criado em" class="um-tnum">@BrazilTime.Format(p.CriadoEmUtc, "dd/MM HH:mm")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+@code {
+    private static readonly CultureInfo PtBr = CultureInfo.GetCultureInfo("pt-BR");
+
+    /// <summary>O teto da lista do serviço (<c>AreaDoAdmin.PedidosAsync</c> traz no máximo 200).</summary>
+    private const int Limite = 200;
+
+    [CascadingParameter] private Task<AuthenticationState>? Estado { get; set; }
+
+    private ClaimsPrincipal user = new(new ClaimsIdentity());
+    private IReadOnlyList<PedidoDto>? pedidos;
+    private string busca = string.Empty;
+    private string? buscou;
+    private bool carregando;
+    private string? erro;
+
+    protected override async Task OnInitializedAsync()
+    {
+        user = Estado is null ? new ClaimsPrincipal(new ClaimsIdentity()) : (await Estado).User;
+        await CarregarAsync();
+    }
+
+    private Task BuscarAsync() => CarregarAsync();
+
+    private async Task CarregarAsync()
+    {
+        if (carregando) return;
+        carregando = true;
+        erro = null;
+        try
+        {
+            var termo = string.IsNullOrWhiteSpace(busca) ? null : busca.Trim();
+            pedidos = await Area.PedidosAsync(user, termo);
+            buscou = termo;
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            erro = ex.Message;
+        }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "Falha ao listar os pedidos no admin.");
+            erro = "A lista de pedidos não carregou agora. Tente de novo em instantes.";
+        }
+        finally
+        {
+            carregando = false;
+        }
+    }
+
+    private int Quantos(StatusDoPedido s) => pedidos?.Count(p => p.Status == s) ?? 0;
+
+    /// <summary>O status sempre em texto junto da cor.</summary>
+    private static (string Classe, string Texto) StatusDe(StatusDoPedido s) => s switch
+    {
+        StatusDoPedido.Pago => ("um-badge-success", "Pago ✓"),
+        StatusDoPedido.AguardandoPagamento => ("um-badge-warning", "Aguardando pagamento"),
+        StatusDoPedido.Cancelado => ("um-badge-danger", "Cancelado"),
+        StatusDoPedido.Expirado => ("", "Expirado"),
+        _ => ("", s.ToString()),
+    };
+
+    private static string MetodoDe(PedidoDto p) => p.Metodo switch
+    {
+        MetodoDePagamento.Pix => "Pix",
+        MetodoDePagamento.Cartao => string.IsNullOrWhiteSpace(p.CartaoFinal) ? "Cartão" : $"Cartão final {p.CartaoFinal}",
+        MetodoDePagamento.Gratuito => "Gratuito",
+        _ => "—",
+    };
+
+    private static string Num(int n) => n.ToString("N0", PtBr);
+}
+
+<style>
+    .adp { display: grid; gap: 1rem; padding-bottom: var(--um-sec-pad); }
+    .adp-voltar { display: inline-flex; align-items: center; gap: 0.35rem; min-height: var(--um-tap); font-weight: 600; font-size: 0.9375rem; }
+    .adp-voltar::before { content: "←"; }
+    .adp-busca { max-width: 640px; }
+    .adp-sk { display: block; width: 100%; height: 280px; }
+    .adp-resumo { margin: 0; font-variant-numeric: tabular-nums; }
+
+    .adp-codigo { display: inline-flex; align-items: center; min-height: var(--um-tap); font-weight: 700; letter-spacing: 0.04em; }
+    .adp-ev, .adp-quem { display: grid; gap: 0.1rem; min-width: 10rem; }
+    .adp-ev b { color: var(--um-brand); line-height: 1.25; }
+    .adp-ev small, .adp-quem small { color: var(--um-ink-muted); font-size: 0.8125rem; font-weight: 600; overflow-wrap: anywhere; }
+
+    @@media (max-width: 640px) {
+        .adp-ev, .adp-quem { display: inline-grid; min-width: 0; vertical-align: top; }
+    }
+</style>

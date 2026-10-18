@@ -1,0 +1,193 @@
+@page "/criar-conta"
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.RateLimiting
+@* SSR estático, como o /entrar. O campo do coletivo aparece sempre no HTML (sem JS); onde o navegador entende :has(),
+   o CSS esconde o campo enquanto a caixa de organizador está desmarcada. *@
+@attribute [EnableRateLimiting("login")]
+@inject IContas ServicoDeContas
+@inject NavigationManager Nav
+
+<PageTitle>Criar conta · UMURA</PageTitle>
+<HeadContent>
+    <meta name="robots" content="noindex" />
+</HeadContent>
+
+<section class="um-section">
+    <div class="um-container">
+        @if (nomeLogado is not null)
+        {
+            <div class="um-cartao-auth um-card" data-um-motion="card-in">
+                <a href="/" class="um-logo cc-logo" aria-label="UMURA, início">
+                    <LogoUmura />
+                    <span>UMURA</span>
+                </a>
+                <h1 class="cc-titulo">Você já está na sua conta</h1>
+                <p class="cc-sub">Você entrou como <b>@nomeLogado</b>. Para criar outra conta, saia desta primeiro.</p>
+                <a href="/minha-conta" class="um-btn um-btn-primary um-btn-lg um-btn-block">Ir para Minha conta</a>
+            </div>
+        }
+        else
+        {
+            <div class="um-cartao-auth um-card" data-um-motion="card-in">
+                <a href="/" class="um-logo cc-logo" aria-label="UMURA, início">
+                    <LogoUmura />
+                    <span>UMURA</span>
+                </a>
+
+                <h1 class="cc-titulo">Criar conta</h1>
+                <p class="cc-sub">Guarde seus eventos favoritos, compre ingressos e, se quiser, divulgue os seus.</p>
+
+                @if (erro is not null)
+                {
+                    <div class="um-alert um-alert-danger cc-aviso" role="alert">
+                        <p>@erro</p>
+                    </div>
+                }
+
+                <EditForm Model="Input" method="post" OnValidSubmit="CriarAsync" OnInvalidSubmit="LimparSenha" FormName="criar-conta" Enhance class="um-form">
+                    <DataAnnotationsValidator />
+
+                    <div class="um-field">
+                        <label for="cc-nome" class="um-label">Nome</label>
+                        <InputText id="cc-nome" class="um-input" @bind-Value="Input.Nome" autocomplete="name" autocapitalize="words" />
+                        <ValidationMessage For="() => Input.Nome" class="um-error" />
+                    </div>
+
+                    <div class="um-field">
+                        <label for="cc-email" class="um-label">E-mail</label>
+                        <InputText id="cc-email" type="email" class="um-input" @bind-Value="Input.Email"
+                                   autocomplete="email" inputmode="email" autocapitalize="none" spellcheck="false" />
+                        <ValidationMessage For="() => Input.Email" class="um-error" />
+                    </div>
+
+                    <div class="um-field">
+                        <label for="cc-senha" class="um-label">Senha</label>
+                        <InputText id="cc-senha" type="password" class="um-input" @bind-Value="Input.Senha"
+                                   autocomplete="new-password" aria-describedby="cc-senha-dica" />
+                        <span id="cc-senha-dica" class="um-hint">Mínimo de 8 caracteres, com letras e números.</span>
+                        <ValidationMessage For="() => Input.Senha" class="um-error" />
+                    </div>
+
+                    <div class="cc-org">
+                        <label class="um-check">
+                            <InputCheckbox @bind-Value="Input.QueroOrganizar" />
+                            <span>Quero divulgar meus eventos (conta de organizador)</span>
+                        </label>
+
+                        <div class="um-field cc-org-nome">
+                            <label for="cc-coletivo" class="um-label">Nome do coletivo, produtora ou espaço</label>
+                            <InputText id="cc-coletivo" class="um-input" @bind-Value="Input.NomeDoOrganizador"
+                                       autocomplete="organization" aria-describedby="cc-coletivo-dica" />
+                            <span id="cc-coletivo-dica" class="um-hint">Só se for organizador. É o nome que aparece nos seus eventos.</span>
+                            <ValidationMessage For="() => Input.NomeDoOrganizador" class="um-error" />
+                        </div>
+                    </div>
+
+                    <button type="submit" class="um-btn um-btn-primary um-btn-lg um-btn-block">Criar conta</button>
+                </EditForm>
+
+                <p class="cc-rodape">Já tem conta? <a href="@LinkEntrar">Entrar</a></p>
+            </div>
+        }
+    </div>
+</section>
+
+<style>
+    .cc-logo { margin-bottom: 0.75rem; }
+    .cc-titulo { margin: 0 0 0.25rem; }
+    .cc-sub { margin: 0 0 1.25rem; color: var(--um-ink-soft); }
+    .cc-aviso { margin-bottom: 1rem; }
+    .cc-aviso p { margin: 0; }
+    .cc-org { display: grid; gap: 0.75rem; padding: 0.75rem 0.9rem; border: 1px solid var(--um-border-soft); border-radius: var(--um-radius); background: var(--um-surface-3); }
+    .cc-rodape { margin: 1.25rem 0 0; text-align: center; color: var(--um-ink-soft); }
+    .cc-rodape a { display: inline-flex; align-items: center; min-height: var(--um-tap); font-weight: 600; }
+    .um-cartao-auth .um-input.invalid { border-color: var(--um-danger); }
+    /* Sem JS: onde o navegador entende :has(), o campo do coletivo só aparece com a caixa marcada. */
+    @@supports selector(:has(*)) {
+        .cc-org:not(:has(input[type="checkbox"]:checked)) .cc-org-nome { display: none; }
+    }
+</style>
+
+@code {
+    [CascadingParameter] private HttpContext? HttpContext { get; set; }
+
+    [CascadingParameter] private Task<AuthenticationState>? Estado { get; set; }
+
+    [SupplyParameterFromQuery] private string? ReturnUrl { get; set; }
+
+    /// <summary>?organizador=1 (o link "Sou produtor"/"Para produtores") já chega com a caixa marcada.</summary>
+    [SupplyParameterFromQuery(Name = "organizador")] private string? Organizador { get; set; }
+
+    [SupplyParameterFromForm(FormName = "criar-conta")] private Modelo Input { get; set; } = default!;
+
+    private string? erro;
+    private string? nomeLogado;
+
+    private string LinkEntrar
+    {
+        get
+        {
+            var volta = Sessao.VoltaSegura(ReturnUrl);
+            return volta == "/" ? "/entrar" : "/entrar?returnUrl=" + Uri.EscapeDataString(volta);
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        // No GET o modelo nasce aqui; no POST ele já veio preenchido pelo formulário.
+        Input ??= new Modelo { QueroOrganizar = Organizador == "1" };
+
+        var user = Estado is null ? null : (await Estado).User;
+        if (user?.Identity?.IsAuthenticated == true)
+            nomeLogado = user.Identity.Name ?? "sua conta";
+    }
+
+    private async Task CriarAsync()
+    {
+        var cadastro = new Cadastro(Input.Nome, Input.Email, Input.Senha, Input.QueroOrganizar,
+            Input.QueroOrganizar ? Input.NomeDoOrganizador : null);
+        var r = await ServicoDeContas.CadastrarAsync(cadastro);
+
+        // A senha nunca volta no HTML da resposta.
+        Input.Senha = string.Empty;
+
+        if (!r.Ok || r.Valor is null)
+        {
+            erro = r.Erro ?? "Não deu para criar a conta agora. Tente de novo.";
+            return;
+        }
+
+        if (HttpContext is null)
+        {
+            erro = "Sua conta foi criada, mas não deu para entrar automaticamente. Entre com seu e-mail e senha.";
+            return;
+        }
+
+        await Sessao.EntrarAsync(HttpContext, r.Valor);
+        var destino = r.Valor.Papel == Papel.Organizador ? "/organizador" : Sessao.VoltaSegura(ReturnUrl);
+        Nav.NavigateTo(destino, forceLoad: true);
+    }
+
+    private void LimparSenha() => Input.Senha = string.Empty;
+
+    private sealed class Modelo
+    {
+        [Required(ErrorMessage = "Digite seu nome.")]
+        [StringLength(120, MinimumLength = 2, ErrorMessage = "Digite seu nome (de 2 a 120 letras).")]
+        public string Nome { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Digite seu e-mail.")]
+        [EmailAddress(ErrorMessage = "Digite um e-mail válido.")]
+        [StringLength(200, ErrorMessage = "Esse e-mail é longo demais.")]
+        public string Email { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Crie uma senha.")]
+        [StringLength(128, MinimumLength = 8, ErrorMessage = "A senha precisa ter de 8 a 128 caracteres.")]
+        public string Senha { get; set; } = string.Empty;
+
+        public bool QueroOrganizar { get; set; }
+
+        [StringLength(120, ErrorMessage = "Use até 120 letras no nome do coletivo.")]
+        public string? NomeDoOrganizador { get; set; }
+    }
+}

@@ -1,0 +1,773 @@
+@page "/pedido/{Codigo}"
+@attribute [Authorize]
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@implements IDisposable
+@using System.ComponentModel.DataAnnotations
+@* O pagamento SIMULADO do pedido: contagem do prazo, Pix de demonstração e cartão de teste. Interativo sem prerender —
+   a página depende da sessão e de um relógio de 1 s, e o serviço reconfere o dono do pedido em cada gesto.
+   Nada aqui cobra ninguém: o cartão de verdade é recusado pelo serviço sem ser guardado. *@
+@inject IPedidos ServicoDePedidos
+@inject TimeProvider Relogio
+@inject IJSRuntime JS
+@inject ILoggerFactory Logs
+
+<PageTitle>Pedido · UMURA</PageTitle>
+
+<div class="um-container ped">
+    <div class="um-simulacao ped-simulacao" role="note">
+        <svg class="ped-simulacao-icone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8h.01" />
+        </svg>
+        <span><b>Ambiente de demonstração:</b> o pagamento é simulado e nenhum valor é cobrado.</span>
+    </div>
+
+    @if (erro is not null)
+    {
+        <div class="um-alert um-alert-danger ped-erro" role="alert"><p class="ped-sem-margem">@erro</p></div>
+    }
+
+    @if (carregando)
+    {
+        <p class="um-visually-hidden" role="status">Carregando o pedido…</p>
+        <div class="ped-grade" aria-hidden="true">
+            <div class="um-skeleton ped-sk-principal"></div>
+            <div class="um-skeleton ped-sk-resumo"></div>
+        </div>
+    }
+    else if (pedido is null)
+    {
+        @if (erro is null)
+        {
+            <div class="um-empty">
+                <span class="um-eyebrow">Pedido</span>
+                <h1>Pedido não encontrado</h1>
+                <p>Confira o link. Se você fez o pedido com esta conta, ele também aparece em Meus ingressos.</p>
+                <div class="um-row ped-centro">
+                    <a href="/meus-ingressos" class="um-btn um-btn-primary">Meus ingressos</a>
+                    <a href="/eventos" class="um-btn um-btn-outline">Explorar eventos</a>
+                </div>
+            </div>
+        }
+    }
+    else
+    {
+        PedidoDto p = pedido;
+        var agora = Agora();
+        var fase = FaseDo(p, agora);
+
+        <header class="um-pagina-cab">
+            <span class="um-eyebrow">Pedido <code class="um-mono">@p.Codigo</code></span>
+            <h1>@TituloDa(fase, p)</h1>
+        </header>
+
+        <div class="ped-grade">
+            <aside class="um-card ped-resumo" aria-labelledby="ped-resumo-titulo">
+                <h2 id="ped-resumo-titulo" class="ped-resumo-titulo">Resumo</h2>
+                <a href="/evento/@p.EventoSlug" class="ped-evento">
+                    <img src="@Foto.Card(p.EventoImagem)" alt="" width="640" height="360" decoding="async" />
+                    <span class="ped-evento-texto">
+                        <span class="ped-evento-titulo">@p.EventoTitulo</span>
+                        <span class="ped-meta">@QuandoDoEvento.Rotulo(p.EventoInicioUtc, agora) · @p.LocalNome</span>
+                    </span>
+                </a>
+                <ul class="ped-itens">
+                    @foreach (var item in p.Itens)
+                    {
+                        <li>
+                            <span>@(item.Quantidade)× @item.Nome</span>
+                            <span class="um-tnum">@(item.PrecoUnitarioCentavos == 0 ? "Grátis" : Dinheiro.Reais(item.SubtotalCentavos))</span>
+                        </li>
+                    }
+                </ul>
+                <div class="ped-total">
+                    <span>Total</span>
+                    <b class="um-tnum">@Dinheiro.Reais(p.TotalCentavos)</b>
+                </div>
+            </aside>
+
+            <div class="ped-principal">
+                @switch (fase)
+                {
+                    case Fase.Aguardando:
+                        <section class="um-card ped-pagar" aria-labelledby="ped-pagar-titulo">
+                            <div class="ped-status-linha">
+                                <p class="ped-status" data-um-motion="pix-wait" role="status">Aguardando pagamento…</p>
+                                <p class="ped-prazo">
+                                    Pague em <span class="ped-relogio um-tnum" role="timer" aria-label="Tempo restante para pagar">@Restante(p, agora)</span>
+                                    <span class="um-muted">(até as @BrazilTime.Format(p.ExpiraEmUtc, "HH:mm"))</span>
+                                </p>
+                            </div>
+
+                            <h2 id="ped-pagar-titulo" class="um-visually-hidden">Forma de pagamento</h2>
+                            <div class="um-abas" role="tablist" aria-label="Forma de pagamento">
+                                <button type="button" role="tab" id="ped-aba-pix" aria-controls="ped-painel-pix"
+                                        aria-selected="@(aba == Aba.Pix ? "true" : "false")" tabindex="@(aba == Aba.Pix ? 0 : -1)"
+                                        @ref="abaPix" @onclick="() => Trocar(Aba.Pix)" @onkeydown="TeclaNaAbaAsync">
+                                    Pix
+                                </button>
+                                <button type="button" role="tab" id="ped-aba-cartao" aria-controls="ped-painel-cartao"
+                                        aria-selected="@(aba == Aba.Cartao ? "true" : "false")" tabindex="@(aba == Aba.Cartao ? 0 : -1)"
+                                        @ref="abaCartao" @onclick="() => Trocar(Aba.Cartao)" @onkeydown="TeclaNaAbaAsync">
+                                    Cartão
+                                </button>
+                            </div>
+
+                            @* PIX *@
+                            <div class="ped-painel" role="tabpanel" id="ped-painel-pix" aria-labelledby="ped-aba-pix" hidden="@(aba != Aba.Pix)">
+                                <div class="ped-pix">
+                                    <QrCode Texto="@($"UMURA-DEMO-PIX|{p.Codigo}|{p.TotalCentavos}")" Classe="um-qr-grande" Tamanho="220"
+                                            Rotulo="QR Code Pix de demonstração" />
+                                    <div class="ped-pix-passos">
+                                        <p class="ped-sem-margem">Num pagamento de verdade, você leria este QR no app do banco. Aqui é só demonstração: use o botão abaixo para simular a aprovação.</p>
+                                        <div class="um-field">
+                                            <label for="ped-pix-copia" class="um-label">Pix copia e cola (de demonstração)</label>
+                                            <div class="ped-copia">
+                                                <input id="ped-pix-copia" class="um-input um-mono" type="text" readonly value="@CopiaECola(p)" />
+                                                <button type="button" class="um-btn um-btn-outline" disabled="@copiando" @onclick="CopiarAsync">Copiar código</button>
+                                            </div>
+                                            <span class="um-hint" role="status">@avisoCopia</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                @if (mensagemPix is not null)
+                                {
+                                    <div class="um-alert um-alert-danger" role="alert"><p class="ped-sem-margem">@mensagemPix</p></div>
+                                }
+
+                                <button type="button" class="um-btn um-btn-accent um-btn-lg um-btn-block" disabled="@ocupado" @onclick="PagarPixAsync">
+                                    @(ocupado ? "Confirmando…" : "Simular pagamento aprovado")
+                                </button>
+                            </div>
+
+                            @* CARTÃO *@
+                            <div class="ped-painel" role="tabpanel" id="ped-painel-cartao" aria-labelledby="ped-aba-cartao" hidden="@(aba != Aba.Cartao)">
+                                <div class="um-alert um-alert-info ped-dica" id="ped-cartao-dica">
+                                    <p class="ped-sem-margem">
+                                        <b>Use o cartão de teste @CartaoQueAprova (aprova) ou @CartaoQueRecusa (recusa).</b>
+                                        Cartão real é recusado e nada é guardado.
+                                    </p>
+                                </div>
+
+                                <EditForm Model="cartao" OnValidSubmit="PagarCartaoAsync" class="um-form">
+                                    <DataAnnotationsValidator />
+
+                                    <div class="um-field">
+                                        <label for="ped-cartao-numero" class="um-label">Número do cartão</label>
+                                        <InputText id="ped-cartao-numero" class="um-input um-tnum" @bind-Value="cartao.Numero"
+                                                   inputmode="numeric" autocomplete="off" maxlength="23" aria-describedby="ped-cartao-dica" />
+                                        <ValidationMessage For="() => cartao.Numero" class="um-error" />
+                                    </div>
+
+                                    <div class="um-form-2">
+                                        <div class="um-field">
+                                            <label for="ped-cartao-validade" class="um-label">Validade (MM/AA)</label>
+                                            <InputText id="ped-cartao-validade" class="um-input um-tnum" @bind-Value="cartao.Validade"
+                                                       inputmode="numeric" autocomplete="off" maxlength="5" placeholder="MM/AA" />
+                                            <ValidationMessage For="() => cartao.Validade" class="um-error" />
+                                        </div>
+                                        <div class="um-field">
+                                            <label for="ped-cartao-cvv" class="um-label">CVV</label>
+                                            <InputText id="ped-cartao-cvv" class="um-input um-tnum" @bind-Value="cartao.Cvv"
+                                                       inputmode="numeric" autocomplete="off" maxlength="4" />
+                                            <ValidationMessage For="() => cartao.Cvv" class="um-error" />
+                                        </div>
+                                    </div>
+
+                                    <div class="um-field">
+                                        <label for="ped-cartao-nome" class="um-label">Nome impresso no cartão</label>
+                                        <InputText id="ped-cartao-nome" class="um-input" @bind-Value="cartao.Nome"
+                                                   autocomplete="off" autocapitalize="characters" spellcheck="false" />
+                                        <ValidationMessage For="() => cartao.Nome" class="um-error" />
+                                    </div>
+
+                                    @if (mensagemCartao is not null)
+                                    {
+                                        <div class="um-alert @ClasseDoDesfecho(desfechoCartao)" role="alert"><p class="ped-sem-margem">@mensagemCartao</p></div>
+                                    }
+
+                                    <button type="submit" class="um-btn um-btn-accent um-btn-lg um-btn-block" disabled="@ocupado">
+                                        @(ocupado ? "Processando…" : $"Pagar {Dinheiro.Reais(p.TotalCentavos)}")
+                                    </button>
+                                </EditForm>
+                            </div>
+
+                            <div class="ped-cancelar">
+                                @if (mensagemCancelar is not null)
+                                {
+                                    <div class="um-alert um-alert-danger" role="alert"><p class="ped-sem-margem">@mensagemCancelar</p></div>
+                                }
+                                <button type="button" class="um-btn um-btn-ghost @(confirmandoCancelamento ? "is-confirmando" : "")"
+                                        disabled="@ocupado" @onclick="CancelarAsync">
+                                    @(confirmandoCancelamento ? "Toque de novo para cancelar" : "Cancelar pedido")
+                                </button>
+                                <span class="um-visually-hidden" role="status">@(confirmandoCancelamento ? "Toque de novo no botão para confirmar o cancelamento." : "")</span>
+                            </div>
+                        </section>
+                        break;
+
+                    case Fase.Pago:
+                        <section class="ped-pago" aria-labelledby="ped-ingressos-titulo">
+                            <div class="um-alert um-alert-success" role="status">
+                                <div>
+                                    <b>@(p.Metodo == MetodoDePagamento.Gratuito ? "Reserva confirmada!" : "Pagamento aprovado!")</b>
+                                    <p class="ped-sem-margem">Seus ingressos estão aqui e em <a href="/meus-ingressos">Meus ingressos</a>.</p>
+                                </div>
+                            </div>
+
+                            <p class="ped-pago-meta um-tnum">@(MetodoTexto(p) + QuandoPagou(p))</p>
+
+                            <h2 id="ped-ingressos-titulo" class="ped-sec">@(p.Ingressos.Count == 1 ? "Seu ingresso" : "Seus ingressos")</h2>
+                            @if (p.Ingressos.Count == 0)
+                            {
+                                <p class="um-muted">Os ingressos ainda estão sendo emitidos. Eles aparecem em Meus ingressos em instantes.</p>
+                            }
+                            else
+                            {
+                                <ul class="ped-tickets">
+                                    @foreach (var i in p.Ingressos)
+                                    {
+                                        <li class="um-ticket">
+                                            <QrCode Texto="@($"UMURA|{i.Codigo}")" Rotulo="@($"QR code do ingresso {i.Codigo}")" />
+                                            <div class="ped-ticket-info">
+                                                <span class="ped-tipo">@i.NomeDoTipo</span>
+                                                <code class="um-mono ped-codigo">@i.Codigo</code>
+                                                @if (i.UsadoEmUtc is { } usadoEm)
+                                                {
+                                                    <span class="um-badge um-badge-info">✓ Usado às @BrazilTime.Format(usadoEm, "HH:mm")</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="um-badge um-badge-success">✓ Válido</span>
+                                                }
+                                            </div>
+                                        </li>
+                                    }
+                                </ul>
+                            }
+
+                            <div class="um-row">
+                                <a href="/meus-ingressos" class="um-btn um-btn-primary">Ver em Meus ingressos</a>
+                                <a href="/evento/@p.EventoSlug" class="um-btn um-btn-outline">Ver o evento</a>
+                            </div>
+                        </section>
+                        break;
+
+                    default:
+                        <section class="um-card ped-encerrado">
+                            @if (fase == Fase.Cancelado)
+                            {
+                                <div class="um-alert um-alert-warning" role="status">
+                                    <div>
+                                        <b>Pedido cancelado.</b>
+                                        <p class="ped-sem-margem">Nada foi cobrado e os ingressos voltaram para a venda.</p>
+                                    </div>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="um-alert um-alert-warning" role="status">
+                                    <div>
+                                        <b>O prazo para pagar acabou.</b>
+                                        <p class="ped-sem-margem">Os ingressos voltaram para a venda. Se ainda quiser ir, faça um novo pedido.</p>
+                                    </div>
+                                </div>
+                            }
+                            @if (mensagemPix is not null || mensagemCancelar is not null)
+                            {
+                                <p class="um-muted ped-sem-margem">@(mensagemPix ?? mensagemCancelar)</p>
+                            }
+                            <div class="um-row">
+                                <a href="/evento/@p.EventoSlug" class="um-btn um-btn-primary">Voltar ao evento</a>
+                                <a href="/meus-ingressos" class="um-btn um-btn-outline">Meus ingressos</a>
+                            </div>
+                        </section>
+                        break;
+                }
+            </div>
+        </div>
+    }
+</div>
+
+<style>
+    .ped { padding-bottom: var(--um-sec-pad); }
+    .ped-sem-margem { margin: 0; }
+    .ped-centro { justify-content: center; }
+    .ped-simulacao { margin-top: 1rem; }
+    .ped-simulacao-icone { width: 20px; height: 20px; flex: none; color: var(--um-info); margin-top: 0.1rem; }
+    .ped-erro { margin-top: 1rem; }
+
+    .ped-grade { display: grid; gap: 1rem; }
+    .ped-principal { display: grid; gap: 1rem; min-width: 0; }
+    @@media (min-width: 981px) {
+        .ped-grade { grid-template-columns: minmax(0, 1fr) 360px; gap: 1.5rem; align-items: start; }
+        .ped-principal { grid-column: 1; grid-row: 1; }
+        .ped-resumo { grid-column: 2; grid-row: 1; position: sticky; top: calc(var(--um-header) + 1rem); }
+    }
+    .ped-sk-principal { min-height: 420px; border-radius: var(--um-radius); }
+    .ped-sk-resumo { min-height: 220px; border-radius: var(--um-radius); }
+
+    .ped-resumo { display: grid; gap: 0.9rem; }
+    .ped-resumo-titulo { margin: 0; font-size: 1.1rem; }
+    .ped-evento { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 0.75rem; align-items: center; color: inherit; text-decoration: none; }
+    .ped-evento:hover { color: inherit; }
+    .ped-evento img { width: 96px; height: 54px; object-fit: cover; border-radius: var(--um-radius-sm); background: var(--um-surface-2); display: block; }
+    @@media (min-width: 981px) {
+        .ped-evento { grid-template-columns: 1fr; }
+        .ped-evento img { width: 100%; height: auto; aspect-ratio: 16 / 9; }
+    }
+    .ped-evento-texto { display: grid; gap: 0.2rem; min-width: 0; }
+    .ped-evento-titulo { font-family: var(--um-display); font-weight: 700; color: var(--um-brand); line-height: 1.2; overflow-wrap: anywhere; }
+    .ped-evento:hover .ped-evento-titulo { text-decoration: underline; }
+    .ped-meta { font-size: 0.875rem; color: var(--um-ink-soft); }
+    .ped-itens { display: grid; gap: 0.4rem; margin: 0; padding: 0; list-style: none; font-size: 0.9375rem; }
+    .ped-itens li { display: flex; justify-content: space-between; gap: 1rem; }
+    .ped-total { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; padding-top: 0.75rem; border-top: 1px solid var(--um-border-soft); font-weight: 600; }
+    .ped-total b { font-family: var(--um-display); font-size: 1.35rem; color: var(--um-brand); }
+
+    .ped-pagar { display: grid; gap: 1rem; }
+    .ped-status-linha { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 1rem; }
+    .ped-status { display: inline-flex; align-items: center; gap: 0.5rem; margin: 0; font-weight: 700; color: var(--um-warning); }
+    .ped-status::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: currentColor; flex: none; }
+    .ped-prazo { margin: 0; font-size: 0.95rem; }
+    .ped-relogio { font-family: var(--um-display); font-size: 1.5rem; font-weight: 700; color: var(--um-brand); }
+    .ped .um-abas button { min-height: var(--um-tap); }
+    .ped-painel { display: grid; gap: 1rem; }
+    .ped-painel[hidden] { display: none; }
+    .ped-pix { display: grid; gap: 1rem; justify-items: center; text-align: center; }
+    @@media (min-width: 641px) {
+        .ped-pix { grid-template-columns: auto minmax(0, 1fr); justify-items: stretch; align-items: center; text-align: left; }
+    }
+    .ped-pix-passos { display: grid; gap: 0.9rem; min-width: 0; width: 100%; text-align: left; }
+    .ped-copia { display: flex; gap: 0.5rem; }
+    .ped-copia .um-input { flex: 1; min-width: 0; font-size: 0.875rem; }
+    @@media (max-width: 480px) {
+        .ped-copia { flex-direction: column; }
+    }
+    .ped-dica b { display: inline; }
+    .ped-cancelar { display: grid; gap: 0.5rem; justify-items: center; padding-top: 0.75rem; border-top: 1px solid var(--um-border-soft); }
+    .ped-cancelar .is-confirmando { color: var(--um-danger); background: var(--um-danger-bg); }
+    .ped .um-input.invalid { border-color: var(--um-danger); }
+
+    .ped-pago { display: grid; gap: 1rem; }
+    .ped-pago-meta { margin: 0; color: var(--um-ink-soft); }
+    .ped-sec { margin: 0.25rem 0 0; font-size: 1.2rem; }
+    .ped-tickets { display: grid; gap: 0.75rem; margin: 0; padding: 0; list-style: none; }
+    .ped-ticket-info { display: grid; gap: 0.35rem; justify-items: start; min-width: 0; }
+    .ped-tipo { font-size: 0.75rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--um-ink-muted); }
+    .ped-codigo { font-size: 1.1rem; font-weight: 700; letter-spacing: 0.12em; color: var(--um-ink); overflow-wrap: anywhere; }
+    @@media (max-width: 480px) {
+        .ped-tickets .um-ticket { grid-template-columns: 1fr; justify-items: center; text-align: center; }
+        .ped-ticket-info { justify-items: center; }
+    }
+    .ped-encerrado { display: grid; gap: 1rem; }
+</style>
+
+@code {
+    private enum Aba { Pix, Cartao }
+
+    private enum Fase { Aguardando, Pago, Cancelado, Expirado }
+
+    // Os números de teste vêm do serviço (a régua que aprova/recusa), não são redigitados aqui.
+    private static readonly string CartaoQueAprova = EmGrupos(global::Agenda_Shows.Services.Pedidos.Pedidos.CartaoAprovado);
+    private static readonly string CartaoQueRecusa = EmGrupos(global::Agenda_Shows.Services.Pedidos.Pedidos.CartaoRecusado);
+
+    [Parameter] public string Codigo { get; set; } = string.Empty;
+
+    [CascadingParameter] private Task<AuthenticationState>? Estado { get; set; }
+
+    private ClaimsPrincipal user = new(new ClaimsIdentity());
+    private PedidoDto? pedido;
+    private string? carregadoPara;
+    private bool carregando = true;
+    private string? erro;
+
+    private Aba aba = Aba.Pix;
+    private ElementReference abaPix;
+    private ElementReference abaCartao;
+
+    // Guarda de reentrância: um gesto de cada vez (clique duplo, Enter repetido).
+    private bool ocupado;
+    private bool copiando;
+
+    private string? mensagemPix;
+    private string? avisoCopia;
+
+    private DadosDoCartao cartao = new();
+    private DesfechoDoCartao? desfechoCartao;
+    private string? mensagemCartao;
+
+    private bool confirmandoCancelamento;
+    private DateTime confirmarAte;
+    private string? mensagemCancelar;
+
+    private PeriodicTimer? tique;
+    private bool descartado;
+    private ILogger? log;
+
+    private ILogger Log => log ??= Logs.CreateLogger("Agenda_Shows.UI.Pedido");
+
+    private DateTime Agora() => Relogio.GetUtcNow().UtcDateTime;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (carregadoPara == Codigo) return;
+        carregadoPara = Codigo;
+
+        user = Estado is null ? new ClaimsPrincipal(new ClaimsIdentity()) : (await Estado).User;
+        pedido = null;
+        carregando = true;
+        erro = mensagemPix = mensagemCartao = mensagemCancelar = avisoCopia = null;
+        desfechoCartao = null;
+        confirmandoCancelamento = false;
+        PararContagem();
+
+        await CarregarAsync();
+    }
+
+    private async Task CarregarAsync()
+    {
+        try
+        {
+            pedido = CodigoPlausivel(Codigo) ? await ServicoDePedidos.ObterAsync(user, Codigo) : null;
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            erro = ex.Message;
+            pedido = null;
+        }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "Pedido: falha ao carregar o pedido.");
+            erro = "Não deu para carregar o pedido agora. Recarregue a página.";
+        }
+        finally
+        {
+            carregando = false;
+        }
+        AjustarContagem();
+    }
+
+    // ── O relógio do prazo ─────────────────────────────────────────────────────────────────────────────────────────
+    private void AjustarContagem()
+    {
+        if (pedido is not null && FaseDo(pedido, Agora()) == Fase.Aguardando) LigarContagem();
+        else PararContagem();
+    }
+
+    private void LigarContagem()
+    {
+        if (tique is not null || descartado) return;
+        tique = new PeriodicTimer(TimeSpan.FromSeconds(1));
+        _ = ContarAsync(tique);
+    }
+
+    private void PararContagem()
+    {
+        tique?.Dispose();
+        tique = null;
+    }
+
+    private async Task ContarAsync(PeriodicTimer t)
+    {
+        try
+        {
+            // Depois do Dispose, WaitForNextTickAsync devolve false e o laço termina sozinho.
+            while (await t.WaitForNextTickAsync())
+            {
+                if (descartado) return;
+                await InvokeAsync(TiqueAsync);
+            }
+        }
+        catch (ObjectDisposedException)
+        {
+        }
+        catch (Exception ex)
+        {
+            Log.LogWarning("Pedido: o relógio do prazo parou ({Erro}).", ex.GetType().Name);
+        }
+    }
+
+    private async Task TiqueAsync()
+    {
+        if (descartado || pedido is null) return;
+        var agora = Agora();
+        if (confirmandoCancelamento && agora >= confirmarAte) confirmandoCancelamento = false;
+
+        // Zerou: para o relógio e relê o pedido (o job de expiração pode já ter devolvido os ingressos ao lote).
+        if (pedido.Status == StatusDoPedido.AguardandoPagamento && pedido.ExpiraEmUtc <= agora)
+        {
+            PararContagem();
+            if (!ocupado) await CarregarAsync();
+        }
+        StateHasChanged();
+    }
+
+    // ── Abas ─────────────────────────────────────────────────────────────────────────────────────────────────────
+    private void Trocar(Aba nova)
+    {
+        aba = nova;
+        confirmandoCancelamento = false;
+    }
+
+    private async Task TeclaNaAbaAsync(KeyboardEventArgs e)
+    {
+        Aba? nova = e.Key switch
+        {
+            "ArrowRight" or "ArrowLeft" => aba == Aba.Pix ? Aba.Cartao : Aba.Pix,
+            "Home" => Aba.Pix,
+            "End" => Aba.Cartao,
+            _ => null,
+        };
+        if (nova is null) return;
+        Trocar(nova.Value);
+        try
+        {
+            await (aba == Aba.Pix ? abaPix : abaCartao).FocusAsync();
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+        catch (JSException)
+        {
+        }
+    }
+
+    // ── Pix ──────────────────────────────────────────────────────────────────────────────────────────────────────
+    private async Task CopiarAsync()
+    {
+        if (copiando || pedido is null) return;
+        copiando = true;
+        try
+        {
+            var ok = await JS.InvokeAsync<bool>("umCopyToClipboard", CopiaECola(pedido));
+            avisoCopia = ok ? "Código copiado." : "Não deu para copiar. Toque no campo, selecione o código e copie.";
+        }
+        catch (JSDisconnectedException)
+        {
+            // O circuito caiu no meio do gesto: não há tela para avisar.
+        }
+        catch (JSException)
+        {
+            avisoCopia = "Não deu para copiar. Toque no campo, selecione o código e copie.";
+        }
+        catch (TaskCanceledException)
+        {
+            avisoCopia = "Não deu para copiar. Toque no campo, selecione o código e copie.";
+        }
+        finally
+        {
+            copiando = false;
+        }
+    }
+
+    private async Task PagarPixAsync()
+    {
+        if (ocupado || pedido is null) return;
+        ocupado = true;
+        mensagemPix = null;
+        confirmandoCancelamento = false;
+        try
+        {
+            var r = await ServicoDePedidos.PagarPixSimuladoAsync(user, pedido.Codigo);
+            if (r.Ok && r.Valor is not null)
+            {
+                pedido = r.Valor;
+            }
+            else
+            {
+                mensagemPix = r.Erro ?? "Não deu para confirmar o pagamento. Tente de novo.";
+                await CarregarAsync();
+            }
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            erro = ex.Message;
+        }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "Pedido: falha no Pix simulado.");
+            mensagemPix = "Não deu para confirmar o pagamento agora. Tente de novo.";
+        }
+        finally
+        {
+            ocupado = false;
+            AjustarContagem();
+        }
+    }
+
+    // ── Cartão de teste ──────────────────────────────────────────────────────────────────────────────────────────
+    private async Task PagarCartaoAsync()
+    {
+        if (ocupado || pedido is null) return;
+        ocupado = true;
+        mensagemCartao = null;
+        desfechoCartao = null;
+        confirmandoCancelamento = false;
+        try
+        {
+            var (desfecho, mensagem) = await ServicoDePedidos.PagarCartaoSimuladoAsync(user, pedido.Codigo,
+                cartao.Numero, NormalizaValidade(cartao.Validade), cartao.Cvv);
+            desfechoCartao = desfecho;
+            mensagemCartao = mensagem;
+
+            if (desfecho == DesfechoDoCartao.Aprovado)
+            {
+                // Aprovado: nada do cartão fica na memória do circuito.
+                cartao = new DadosDoCartao();
+                await CarregarAsync();
+            }
+            else
+            {
+                cartao.Cvv = string.Empty;
+            }
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            erro = ex.Message;
+        }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "Pedido: falha no cartão simulado.");
+            desfechoCartao = DesfechoDoCartao.Invalido;
+            mensagemCartao = "Não deu para processar agora. Tente de novo.";
+        }
+        finally
+        {
+            ocupado = false;
+            AjustarContagem();
+        }
+    }
+
+    // ── Cancelar (dois toques) ───────────────────────────────────────────────────────────────────────────────────
+    private async Task CancelarAsync()
+    {
+        if (ocupado || pedido is null) return;
+        if (!confirmandoCancelamento)
+        {
+            confirmandoCancelamento = true;
+            confirmarAte = Agora().AddSeconds(6);
+            return;
+        }
+
+        ocupado = true;
+        confirmandoCancelamento = false;
+        mensagemCancelar = null;
+        try
+        {
+            var r = await ServicoDePedidos.CancelarAsync(user, pedido.Codigo);
+            if (r.Ok && r.Valor is not null)
+            {
+                pedido = r.Valor;
+            }
+            else
+            {
+                mensagemCancelar = r.Erro ?? "Não deu para cancelar agora. Tente de novo.";
+                await CarregarAsync();
+            }
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            erro = ex.Message;
+        }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "Pedido: falha ao cancelar.");
+            mensagemCancelar = "Não deu para cancelar agora. Tente de novo.";
+        }
+        finally
+        {
+            ocupado = false;
+            AjustarContagem();
+        }
+    }
+
+    public void Dispose()
+    {
+        descartado = true;
+        PararContagem();
+    }
+
+    // ── Apoio ────────────────────────────────────────────────────────────────────────────────────────────────────
+    /// <summary>Aguardando com o prazo vencido já é "expirado" para a tela, mesmo antes de o job passar.</summary>
+    private static Fase FaseDo(PedidoDto p, DateTime agora) => p.Status switch
+    {
+        StatusDoPedido.Pago => Fase.Pago,
+        StatusDoPedido.Cancelado => Fase.Cancelado,
+        StatusDoPedido.Expirado => Fase.Expirado,
+        _ => p.ExpiraEmUtc > agora ? Fase.Aguardando : Fase.Expirado,
+    };
+
+    private static string TituloDa(Fase fase, PedidoDto p) => fase switch
+    {
+        Fase.Aguardando => "Pagamento",
+        Fase.Pago => p.Ingressos.Count == 1 ? "Ingresso garantido" : "Ingressos garantidos",
+        Fase.Cancelado => "Pedido cancelado",
+        _ => "Prazo encerrado",
+    };
+
+    /// <summary>"14:59" — minutos e segundos que faltam, nunca negativo.</summary>
+    private static string Restante(PedidoDto p, DateTime agora)
+    {
+        var falta = p.ExpiraEmUtc - agora;
+        var segundos = falta <= TimeSpan.Zero ? 0 : (int)Math.Ceiling(falta.TotalSeconds);
+        return $"{segundos / 60:00}:{segundos % 60:00}";
+    }
+
+    /// <summary>Um "copia e cola" de mentira, só com cara de Pix — não é um BR Code válido de propósito.</summary>
+    private static string CopiaECola(PedidoDto p) =>
+        $"00020126UMURA.DEMO.PIX{p.Codigo}5204000053039865802BR6009CURITIBA";
+
+    private static string MetodoTexto(PedidoDto p) => p.Metodo switch
+    {
+        MetodoDePagamento.Pix => "Pago com Pix (simulado)",
+        MetodoDePagamento.Cartao => string.IsNullOrEmpty(p.CartaoFinal)
+            ? "Pago com cartão (simulado)"
+            : $"Pago com cartão final {p.CartaoFinal} (simulado)",
+        MetodoDePagamento.Gratuito => "Ingresso gratuito",
+        _ => "Pagamento confirmado",
+    };
+
+    /// <summary>" · em 18/10 às 21:40" (vazio se o pedido não tem a hora do pagamento).</summary>
+    private static string QuandoPagou(PedidoDto p) =>
+        p.PagoEmUtc is { } pagoEm ? $" · em {BrazilTime.Format(pagoEm, "dd/MM 'às' HH:mm")}" : string.Empty;
+
+    private static string ClasseDoDesfecho(DesfechoDoCartao? d) => d switch
+    {
+        DesfechoDoCartao.Aprovado => "um-alert-success",
+        DesfechoDoCartao.NaoEhCartaoDeTeste => "um-alert-warning",
+        _ => "um-alert-danger",
+    };
+
+    /// <summary>O teclado numérico do celular não tem "/": "1228" vira "12/28" antes de ir ao serviço.</summary>
+    private static string NormalizaValidade(string? v)
+    {
+        var s = (v ?? string.Empty).Trim();
+        var digitos = new string(s.Where(char.IsDigit).ToArray());
+        return !s.Contains('/') && digitos.Length == 4 ? $"{digitos[..2]}/{digitos[2..]}" : s;
+    }
+
+    private static string EmGrupos(string digitos) => string.Join(" ", digitos.Chunk(4).Select(c => new string(c)));
+
+    private static bool CodigoPlausivel(string? c) =>
+        !string.IsNullOrEmpty(c) && c.Length <= 32 && c.All(char.IsLetterOrDigit);
+
+    private sealed class DadosDoCartao
+    {
+        [Required(ErrorMessage = "Digite o número do cartão.")]
+        [StringLength(23, ErrorMessage = "Número de cartão longo demais.")]
+        public string Numero { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Digite a validade (MM/AA).")]
+        [StringLength(7, ErrorMessage = "Use MM/AA.")]
+        public string Validade { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Digite o CVV.")]
+        [StringLength(4, ErrorMessage = "O CVV tem 3 ou 4 números.")]
+        public string Cvv { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Digite o nome impresso no cartão.")]
+        [StringLength(80, ErrorMessage = "Nome longo demais.")]
+        public string Nome { get; set; } = string.Empty;
+    }
+}

@@ -1,310 +1,185 @@
 ﻿@page "/"
-@layout EmptyLayout
+@using Microsoft.Extensions.Logging
+@inject ICatalogo Catalogo
+@inject TimeProvider Relogio
+@inject ILogger<Home> Log
 
-<PageTitle>Urbura · Brand & UI Kit v2</PageTitle>
+@* A vitrine "estilo iFood": busca no topo, as bolinhas dos nichos, e os trilhos (ao vivo, hoje, destaques, grátis, fim de
+   semana, um por nicho). SSR estático: abre rápido e o Google lê. Nada aqui é interativo — o que precisa de circuito
+   (instalar o app) vem como ilha no fim. *@
 
+<PageTitle>Eventos em Curitiba · UMURA</PageTitle>
 <HeadContent>
-    <meta name="description" content="UI Kit v2 da Urbura — marca, fundamentos, componentes, aplicações e governança." />
-    <link rel="icon" href="assets/urbura-logo-vertical.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="tokens.css" />
-    <link rel="stylesheet" href="styles.css" />
-    <script src="app.js" defer></script>
+    <meta name="description" content="O que rola hoje em Curitiba: shows, festas, teatro, feiras e a cena independente da cidade, com ingresso na hora." />
 </HeadContent>
 
-<div class="urbura-kit" data-theme="light">
-    <a class="skip-link" href="#content">Pular para o conteúdo</a>
-
-    <aside class="sidebar">
-      <a href="#overview" class="brand" aria-label="Urbura UI Kit, início">
-        <img src="assets/urbura-logo.svg" alt="Urbura" />
-        <span>Brand & UI Kit <b>v2</b></span>
-      </a>
-      <nav aria-label="Seções do UI Kit">
-        <a href="#overview" class="is-active">Visão geral</a>
-        <a href="#coverage">Cobertura 67/67</a>
-        <a href="#foundations">Fundamentos da marca</a>
-        <a href="#logo-system">Sistema de logo</a>
-        <a href="#colors">Cores</a>
-        <a href="#type">Tipografia</a>
-        <a href="#shape">Forma e espaço</a>
-        <a href="#visual-language">Linguagem visual</a>
-        <a href="#actions">Ações</a>
-        <a href="#fields">Campos</a>
-        <a href="#chips">Filtros e estados</a>
-        <a href="#events">Cards de evento</a>
-        <a href="#map">Mapa</a>
-        <a href="#feedback">Feedback</a>
-        <a href="#applications">Aplicações</a>
-        <a href="#governance">Governança</a>
-        <a href="#accessibility">Acessibilidade</a>
-      </nav>
-      <div class="sidebar-footer">
-        <button class="theme-toggle" type="button" data-theme-toggle aria-pressed="false">
-          <span aria-hidden="true">◐</span> Alternar tema
-        </button>
-        <small>Cartografia Viva · Dusk Mode</small>
-      </div>
-    </aside>
-
-    <main id="content">
-      <section id="overview" class="hero section">
-        <div class="section-index">00 / Fundamentos do produto</div>
-        <div class="hero-grid">
-          <div>
-            <p class="eyebrow"><span></span> Sistema em construção</p>
-            <h1>Uma cidade,<br /><em>muitas cenas.</em></h1>
-            <p class="lead">Um sistema completo para tornar a cultura da cidade mais fácil de descobrir, compreender e acessar.</p>
-            <div class="button-row">
-              <a href="#coverage" class="button primary">Explorar o sistema <span>→</span></a>
-              <a href="#accessibility" class="button ghost">Ver critérios</a>
+<div class="um-container um-home">
+    <header class="um-home-topo">
+        <div>
+            <span class="um-eyebrow">Curitiba · PR</span>
+            <h1 class="um-home-titulo">O que rola hoje?</h1>
+        </div>
+        <form method="get" action="/eventos" role="search" class="um-home-busca">
+            <label for="home-busca" class="um-visually-hidden">Buscar eventos</label>
+            <div class="um-busca">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" />
+                </svg>
+                <input id="home-busca" type="search" name="q" placeholder="Busque show, festa, bairro…"
+                       maxlength="80" autocomplete="off" enterkeyhint="search" />
+                <button type="submit" class="um-btn um-btn-primary">Buscar</button>
             </div>
-          </div>
-          <div class="hero-map" aria-hidden="true">
-            <div class="route route-a"></div>
-            <div class="route route-b"></div>
-            <span class="map-dot dot-one"></span><span class="map-dot dot-two"></span><span class="map-dot dot-three"></span>
-            <div class="hero-map-card"><small>CURITIBA · AGORA</small><strong>Cartografia Viva</strong><span>Clareza territorial + humanidade documental</span></div>
-          </div>
-        </div>
-        <div class="principle-grid">
-          <article><span>01</span><h3>Clareza territorial</h3><p>Lugar, momento e próxima ação.</p></article>
-          <article><span>02</span><h3>Hierarquia calma</h3><p>Densidade cultural com respiro.</p></article>
-          <article><span>03</span><h3>Cor como sinal</h3><p>Estado, ação e categoria.</p></article>
-          <article><span>04</span><h3>Acesso estrutural</h3><p>Projetado desde o início.</p></article>
-        </div>
-      </section>
+        </form>
+    </header>
 
-      <section id="coverage" class="section coverage-section">
-        <header class="section-heading"><div><span>01</span><p>Mapa do sistema</p></div><h2>Cobertura 67/67</h2><p>Todos os módulos do guia de referência aparecem no Brand Guide v2 e têm uma expressão correspondente neste sistema.</p></header>
-        <div class="coverage-summary"><strong>67</strong><span>módulos contemplados</span><i>Oficial · Diretriz v1 · Provisório · Pendente</i></div>
-        <div class="coverage-groups">
-          <article><h3>Apresentação <span>01–04</span></h3><p>Capa · Declaração · Sumário · Como usar</p></article>
-          <article><h3>Fundamentos <span>05–13</span></h3><p>Visão geral · Contexto · Propósito · Missão e visão · Valores · Posicionamento · Público · Personalidade · Palavras</p></article>
-          <article><h3>Processo do logo <span>14–25</span></h3><p>Assinatura · Desafio · Critérios · Território · Moodboard · Conceitos · Direção · Conceito · Forma · Construção · Refinamento · Identidade final</p></article>
-          <article><h3>Sistema de logo <span>26–34</span></h3><p>Principal · Secundário · Símbolo · Responsivo · Proteção · Mínimo · Fundos · Erros · Posicionamento</p></article>
-          <article><h3>Cores <span>35–39</span></h3><p>Paletas · Proporções · Combinações · Contraste</p></article>
-          <article><h3>Tipografia <span>40–44</span></h3><p>Primária · Secundária · Hierarquia · Uso · Regras</p></article>
-          <article><h3>Linguagem visual <span>45–51</span></h3><p>Gráfica · Padrões · Ícones · Fotografia · Ilustração · Composição · Grid</p></article>
-          <article><h3>Aplicações <span>52–62</span></h3><p>Impresso · Social · Campanha · Website · Mobile · Físico · Ambiente · Ecossistema</p></article>
-          <article><h3>Governança <span>63–67</span></h3><p>Checklist · Biblioteca · Nomes · Responsabilidade · Encerramento</p></article>
+    @if (falhou)
+    {
+        <div class="um-alert um-alert-danger um-home-aviso" role="alert">
+            <div>
+                <b>Não consegui carregar os eventos agora</b>
+                Pode ser a conexão ou o nosso servidor. Tente de novo em instantes.
+                <div class="um-home-aviso-acoes"><a href="/" class="um-btn um-btn-outline">Tentar de novo</a></div>
+            </div>
         </div>
-      </section>
+    }
+    else if (vitrine is { } v)
+    {
+        @if (v.Nichos.Count > 0)
+        {
+            <nav class="um-nichos" aria-label="Nichos">
+                @foreach (var n in v.Nichos)
+                {
+                    <a href="/nicho/@n.Slug" class="um-nicho">
+                        <img src="@FotoDoNicho(n)" alt="" width="72" height="72" loading="lazy" decoding="async" />
+                        <span>@n.Nome</span>
+                    </a>
+                }
+            </nav>
+        }
 
-      <section id="foundations" class="section foundations-section">
-        <header class="section-heading"><div><span>02</span><p>Marca</p></div><h2>Fundamentos</h2><p>Decisões estratégicas que permanecem acima de qualquer estilo ou componente.</p></header>
-        <div class="foundation-grid">
-          <article class="foundation-lead"><small>PROPÓSITO</small><h3>Fazer com que a cultura da cidade seja mais fácil de descobrir, acessar e fortalecer.</h3></article>
-          <article><small>MISSÃO</small><p>Conectar pessoas à vida cultural por meio de uma plataforma acessível, atualizada e territorial.</p></article>
-          <article><small>VISÃO</small><p>Validar Curitiba e então adaptar a infraestrutura a outras cidades brasileiras.</p></article>
-          <article><small>POSICIONAMENTO</small><p>Mapa + curadoria + atualização + contexto, para pessoas e agentes culturais.</p></article>
-        </div>
-        <div class="brand-traits"><span>Suave</span><span>Amigável</span><span>Empática</span><span>Sóbria</span><span>Profissional</span><span>Simpática</span></div>
-        <div class="word-guide"><article><h3>Preferir</h3><p>ao redor · hoje · perto · cena · percurso · programação · espaço · encontro · descobrir · verificar</p></article><article><h3>Evitar</h3><p>imperdível · bombando · exclusivo · disruptivo · hype · palavrões · adjetivos sem evidência</p></article></div>
-      </section>
+        @if (Vazia(v))
+        {
+            <div class="um-empty">
+                <span class="um-eyebrow">Agenda vazia</span>
+                <h2>Nada marcado para os próximos dias</h2>
+                <p>Ainda não tem evento publicado nesta semana. Dá uma olhada na agenda completa — ou, se você organiza algo, divulgue aqui de graça.</p>
+                <div class="um-row um-home-vazio-acoes">
+                    <a href="/eventos" class="um-btn um-btn-primary">Ver a agenda completa</a>
+                    <a href="/criar-conta?organizador=1" class="um-btn um-btn-outline">Divulgar meu evento</a>
+                </div>
+            </div>
+        }
+        else
+        {
+            <Trilho Titulo="Ao vivo agora" Sub="Acontecendo neste momento em Curitiba" VerTudo="/eventos?quando=aovivo"
+                    Eventos="v.AoVivo" Agora="agora" />
 
-      <section id="logo-system" class="section logo-section">
-        <header class="section-heading"><div><span>03</span><p>Identidade</p></div><h2>Sistema de logo</h2><p>Duas assinaturas oficiais, nenhuma versão improvisada e responsividade por escolha de formato.</p></header>
-        <div class="logo-showcase">
-          <article class="logo-horizontal"><span>Principal · horizontal</span><img src="assets/urbura-logo.svg" alt="Logomarca horizontal Urbura" /></article>
-          <article class="logo-vertical"><span>Secundária · vertical</span><img src="assets/urbura-logo-vertical.svg" alt="Logomarca vertical Urbura" /></article>
-          <article class="logo-note"><small>SÍMBOLO</small><strong>Não existe monograma isolado aprovado.</strong><p>Em espaços mínimos, não recorte letras. Um ícone de produto será desenvolvido e documentado separadamente.</p></article>
-        </div>
-        <div class="logo-rules">
-          <article><b>1×</b><h3>Proteção</h3><p>Área livre mínima baseada na haste dominante do U; 1,5× sobre fundos complexos.</p></article>
-          <article><b>120 px</b><h3>Mínimo horizontal</h3><p>32 mm em impressão. Valores provisórios até teste formal.</p></article>
-          <article><b>56 px</b><h3>Mínimo vertical</h3><p>16 mm em impressão. Aumente quando houver perda de nitidez.</p></article>
-          <article><b>0</b><h3>Efeitos</h3><p>Sem gradiente, contorno, sombra, brilho, rotação ou distorção.</p></article>
-        </div>
-      </section>
+            <Trilho Titulo="Hoje" Sub="Ainda dá tempo de ir" VerTudo="/eventos?quando=hoje" Eventos="v.Hoje" Agora="agora" />
 
-      <section id="colors" class="section">
-        <header class="section-heading"><div><span>01</span><p>Fundamentos</p></div><h2>Cor</h2><p>Base quente e sóbria; cores de sinal aparecem com função e nunca isolam informação crítica.</p></header>
-        <div class="swatch-grid">
-          <button class="swatch swatch-carbon" data-copy="#171918"><span>Carbono Urbano</span><b>#171918</b></button>
-          <button class="swatch swatch-ivory" data-copy="#F4F1E8"><span>Marfim de Rua</span><b>#F4F1E8</b></button>
-          <button class="swatch swatch-concrete" data-copy="#D8D6CF"><span>Concreto</span><b>#D8D6CF</b></button>
-          <button class="swatch swatch-green" data-copy="#B8F24B"><span>Verde Encontro</span><b>#B8F24B</b></button>
-          <button class="swatch swatch-blue" data-copy="#315CFF"><span>Azul Percurso</span><b>#315CFF</b></button>
-          <button class="swatch swatch-coral" data-copy="#FF6B4A"><span>Coral Evento</span><b>#FF6B4A</b></button>
-          <button class="swatch swatch-purple" data-copy="#7040E8"><span>Lilás Cena</span><b>#7040E8</b></button>
-          <button class="swatch swatch-white" data-copy="#FFFFFF"><span>Branco Sinal</span><b>#FFFFFF</b></button>
-        </div>
-        <p class="hint">Selecione uma cor para copiar o valor hexadecimal.</p>
-        <div class="color-usage">
-          <article>
-            <header><h3>Institucional / editorial</h3><span>100%</span></header>
-            <div class="usage-bar" aria-label="Carbono 28%, Marfim 38%, Branco 8%, Concreto 12%, Verde 6%, Azul 3%, Coral 3%, Lilás 2%"><i class="u-carbon" style="--share:28"></i><i class="u-ivory" style="--share:38"></i><i class="u-white" style="--share:8"></i><i class="u-concrete" style="--share:12"></i><i class="u-green" style="--share:6"></i><i class="u-blue" style="--share:3"></i><i class="u-coral" style="--share:3"></i><i class="u-purple" style="--share:2"></i></div>
-            <p>Carbono 28 · Marfim 38 · Branco 8 · Concreto 12 · Verde 6 · Azul 3 · Coral 3 · Lilás 2</p>
-          </article>
-          <article>
-            <header><h3>Produto claro</h3><span>100%</span></header>
-            <div class="usage-bar" aria-label="Carbono 22%, Marfim 40%, Branco 18%, Concreto 8%, Verde 5%, Azul 3%, Coral 2%, Lilás 2%"><i class="u-carbon" style="--share:22"></i><i class="u-ivory" style="--share:40"></i><i class="u-white" style="--share:18"></i><i class="u-concrete" style="--share:8"></i><i class="u-green" style="--share:5"></i><i class="u-blue" style="--share:3"></i><i class="u-coral" style="--share:2"></i><i class="u-purple" style="--share:2"></i></div>
-            <p>Carbono 22 · Marfim 40 · Branco 18 · Concreto 8 · Verde 5 · Azul 3 · Coral 2 · Lilás 2</p>
-          </article>
-          <article>
-            <header><h3>Produto dusk</h3><span>100%</span></header>
-            <div class="usage-bar" aria-label="Carbono 48%, Marfim 18%, Branco 10%, Concreto 8%, Verde 6%, Azul 4%, Coral 3%, Lilás 3%"><i class="u-carbon" style="--share:48"></i><i class="u-ivory" style="--share:18"></i><i class="u-white" style="--share:10"></i><i class="u-concrete" style="--share:8"></i><i class="u-green" style="--share:6"></i><i class="u-blue" style="--share:4"></i><i class="u-coral" style="--share:3"></i><i class="u-purple" style="--share:3"></i></div>
-            <p>Carbono 48 · Marfim 18 · Branco 10 · Concreto 8 · Verde 6 · Azul 4 · Coral 3 · Lilás 3</p>
-          </article>
-        </div>
-        <p class="usage-note">As proporções orientam conjuntos de telas ou peças. A soma das cores de sinal deve ficar normalmente entre 10% e 15%; fotografia é contabilizada separadamente.</p>
-        <div class="color-pair-grid">
-          <article class="pair carbon-ivory"><span>Carbono + Marfim</span><b>15,64:1 · leitura</b></article>
-          <article class="pair carbon-green"><span>Carbono + Verde</span><b>13,33:1 · ação</b></article>
-          <article class="pair blue-ivory"><span>Marfim + Azul</span><b>4,53:1 · navegação</b></article>
-          <article class="pair carbon-coral"><span>Carbono + Coral</span><b>6,27:1 · tempo</b></article>
-          <article class="pair purple-ivory"><span>Marfim + Lilás</span><b>5,18:1 · curadoria</b></article>
-          <article class="pair rejected"><span>Evitar em texto normal</span><b>Branco/Verde · Branco/Coral · Carbono/Azul · Carbono/Lilás</b></article>
-        </div>
-      </section>
+            @if (v.Destaques.Count > 0)
+            {
+                <section class="um-trilho" aria-labelledby="trilho-destaques">
+                    <div class="um-trilho-cab">
+                        <div>
+                            <h2 id="trilho-destaques">Em destaque</h2>
+                            <p>Escolhidos a dedo pela equipe da UMURA</p>
+                        </div>
+                    </div>
+                    <div class="um-trilho-faixa is-largo" role="list">
+                        @foreach (var e in v.Destaques)
+                        {
+                            <div role="listitem">
+                                <a href="/evento/@e.Slug" class="um-banner">
+                                    <img src="@Foto.Cheia(e.ImagemUrl)" alt="" loading="lazy" decoding="async" width="1280" height="720" />
+                                    <SeloSituacao InicioUtc="e.InicioUtc" FimUtc="e.FimUtc" Status="e.Status" Agora="agora" />
+                                    <h3>@e.Titulo</h3>
+                                    <p>@e.LocalNome · @QuandoDoCard(e)</p>
+                                </a>
+                            </div>
+                        }
+                    </div>
+                </section>
+            }
 
-      <section id="type" class="section">
-        <header class="section-heading"><div><span>02</span><p>Fundamentos</p></div><h2>Tipografia</h2><p>Manrope para expressão editorial; Inter para orientação e leitura funcional.</p></header>
-        <div class="type-specimens">
-          <article class="type-display"><span>Display · 64/72 · 700</span><p>A cultura ganha <em>lugar</em> na cidade.</p></article>
-          <article><span>Heading 1 · 48/56 · 700</span><h3>Descubra o que acontece ao redor.</h3></article>
-          <article><span>Heading 2 · 36/44 · 700</span><h4>Hoje em Curitiba</h4></article>
-          <article><span>Body · 16/24 · 400</span><p>A programação atualizada aparece no mapa para você encontrar eventos, espaços e experiências próximas.</p></article>
-          <article><span>Small · 14/20 · 600</span><small>ATUALIZADO HOJE ÀS 14:30 · FONTE VERIFICADA</small></article>
-        </div>
-        <div class="type-rules"><article><b>45–75</b><span>caracteres por linha</span></article><article><b>2</b><span>famílias no máximo</span></article><article><b>16 px</b><span>corpo mínimo no mobile</span></article><article><b>LEFT</b><span>alinhamento preferencial</span></article></div>
-      </section>
+            <Trilho Titulo="Grátis" Sub="Rolê bom sem gastar nada" VerTudo="/eventos?gratis=true" Eventos="v.Gratis" Agora="agora" />
 
-      <section id="shape" class="section">
-        <header class="section-heading"><div><span>03</span><p>Fundamentos</p></div><h2>Forma e espaço</h2><p>Base modular de 4 px, cantos moderados e elevação apenas quando ajuda a compreender a interface.</p></header>
-        <div class="shape-grid">
-          <article class="spacing-demo"><h3>Espaçamento</h3><div><i style="--size:4px"></i><span>4</span></div><div><i style="--size:8px"></i><span>8</span></div><div><i style="--size:16px"></i><span>16</span></div><div><i style="--size:24px"></i><span>24</span></div><div><i style="--size:48px"></i><span>48</span></div><div><i style="--size:96px"></i><span>96</span></div></article>
-          <article><h3>Raios</h3><div class="radius-row"><i class="radius-sm">8</i><i class="radius-md">12</i><i class="radius-lg">16</i><i class="radius-xl">24</i><i class="radius-pill">Pill</i></div></article>
-          <article><h3>Elevação</h3><div class="shadow-row"><i class="shadow-small">Small</i><i class="shadow-medium">Medium</i><i class="shadow-high">High</i></div></article>
-        </div>
-      </section>
+            <Trilho Titulo="No fim de semana" Sub="Sexta, sábado e domingo" VerTudo="/eventos?quando=fds"
+                    Eventos="v.FimDeSemana" Agora="agora" />
 
-      <section id="visual-language" class="section visual-language-section">
-        <header class="section-heading"><div><span>04</span><p>Expressão</p></div><h2>Linguagem visual</h2><p>Cartografia Viva transforma percurso, encontro e sinal em uma gramática reconhecível.</p></header>
-        <div class="visual-principles">
-          <article class="route-card"><span>PERCURSO</span><i></i><b></b><em></em><p>Linhas conectam conteúdo e indicam deslocamento.</p></article>
-          <article class="signal-card"><span>SINAL</span><i></i><b></b><em></em><p>Pontos e cores indicam estado, momento e categoria.</p></article>
-          <article class="module-card"><span>ESTRUTURA</span><div><i></i><i></i><i></i><i></i></div><p>Módulos coordenam diversidade sem uniformizar cenas.</p></article>
-        </div>
-        <div class="visual-rules-grid">
-          <article><h3>Padrões</h3><p>Grades, quadras e rotas em baixa densidade; uma base e no máximo uma cor de sinal.</p></article>
-          <article><h3>Iconografia</h3><p>Grid 24 px, traço 1,75–2 px, cantos suaves e rótulo sempre que houver ambiguidade.</p></article>
-          <article><h3>Fotografia</h3><p>Cenas reais, interação, arquitetura, diversidade, crédito e contexto territorial.</p></article>
-          <article><h3>Ilustração</h3><p>Formas modulares e linhas territoriais; sem personagens genéricos de tecnologia.</p></article>
-          <article><h3>Composição</h3><p>Um dominante, um eixo informativo, uma ação e pistas visuais da próxima seção.</p></article>
-          <article><h3>Grid</h3><p>4 colunas mobile · 8 tablet · 12 desktop · base de espaçamento de 4 px.</p></article>
-        </div>
-      </section>
+            <section class="um-chamada um-home-chamada" aria-labelledby="chamada-organizador">
+                <h2 id="chamada-organizador">Você organiza eventos?</h2>
+                <p>Divulgue grátis na UMURA: cadastre em poucos minutos, venda ingresso e acompanhe quem se interessou.</p>
+                <AuthorizeView Roles="@Papeis.OrganizadorOuAdmin">
+                    <Authorized>
+                        <a href="/organizador" class="um-btn um-btn-accent">Ir para meus eventos</a>
+                    </Authorized>
+                    <NotAuthorized>
+                        <a href="/criar-conta?organizador=1" class="um-btn um-btn-accent">Divulgar meu evento</a>
+                    </NotAuthorized>
+                </AuthorizeView>
+            </section>
 
-      <section id="actions" class="section">
-        <header class="section-heading"><div><span>04</span><p>Componentes</p></div><h2>Ações</h2><p>Verbos claros, alvos mínimos de 44 px e estados de foco sempre visíveis.</p></header>
-        <div class="component-panel">
-          <div class="component-line"><span>Primário</span><button class="button primary" type="button">Ver no mapa <b>→</b></button><button class="button primary" type="button" disabled>Ver no mapa</button></div>
-          <div class="component-line"><span>Descoberta</span><button class="button discovery" type="button">Explorar por perto <b>↗</b></button><button class="icon-button favorite" type="button" aria-pressed="false" aria-label="Salvar evento">♡</button></div>
-          <div class="component-line"><span>Secundário</span><button class="button secondary" type="button">Traçar rota</button><button class="button outline" type="button">Compartilhar</button><a class="text-action" href="#actions">Informar alteração ↗</a></div>
-          <div class="component-line dark-line"><span>Inverso</span><button class="button inverse" type="button">Ver detalhes <b>→</b></button><button class="icon-button inverse" type="button" aria-label="Mais opções">•••</button></div>
-        </div>
-      </section>
-
-      <section id="fields" class="section">
-        <header class="section-heading"><div><span>05</span><p>Componentes</p></div><h2>Campos</h2><p>Rótulos persistentes, ajuda contextual e mensagens de erro que explicam a correção.</p></header>
-        <div class="field-grid">
-          <div class="field"><span>Buscar programação</span><div><i aria-hidden="true">⌕</i><input aria-label="Buscar programação" type="search" placeholder="Evento, espaço ou bairro" /></div><small>Use uma palavra ou localização.</small></div>
-          <div class="field"><span>Data</span><div><input aria-label="Data" type="text" value="Hoje" /><i aria-hidden="true">⌄</i></div></div>
-          <div class="field"><span>Distância</span><div><input aria-label="Distância" type="text" value="Até 5 km" /><i aria-hidden="true">⌄</i></div></div>
-          <div class="field has-error"><span>E-mail do responsável</span><div><input aria-label="E-mail do responsável" type="email" value="nome@@" aria-describedby="email-error" /></div><small id="email-error">Digite um endereço de e-mail completo.</small></div>
-        </div>
-      </section>
-
-      <section id="chips" class="section">
-        <header class="section-heading"><div><span>06</span><p>Componentes</p></div><h2>Filtros e estados</h2><p>Texto e ícone acompanham a cor para preservar compreensão e acessibilidade.</p></header>
-        <div class="component-panel">
-          <div class="component-line"><span>Filtros</span><div class="chip-group" role="group" aria-label="Categorias"><button class="chip is-selected" type="button">Todos</button><button class="chip" type="button">Música</button><button class="chip" type="button">Exposições</button><button class="chip" type="button">Cultura de rua</button></div></div>
-          <div class="component-line"><span>Estados</span><div class="badge-group"><b class="badge free">Gratuito</b><b class="badge verified">✓ Verificado</b><b class="badge updated">Atualizado</b><b class="badge sponsored">Patrocinado</b><b class="badge cancelled">Cancelado</b></div></div>
-          <div class="component-line"><span>Categorias</span><div class="badge-group"><b class="badge music">● Música</b><b class="badge exhibition">■ Exposição</b><b class="badge street">◆ Cultura de rua</b></div></div>
-        </div>
-      </section>
-
-      <section id="events" class="section">
-        <header class="section-heading"><div><span>07</span><p>Padrões</p></div><h2>Cards de evento</h2><p>Imagem, momento, lugar e estado organizados para uma decisão rápida.</p></header>
-        <div class="event-grid">
-          <article class="event-card">
-            <div class="event-image"><img src="assets/cultura-show.jpg" alt="Público reunido em uma apresentação musical" /><b class="badge music">Música</b><button class="icon-button favorite" type="button" aria-pressed="false" aria-label="Salvar Jazz no Largo">♡</button></div>
-            <div class="event-copy"><div><small>HOJE · 20:30</small><span>01</span></div><h3>Jazz no Largo</h3><p>⌖ Largo da Ordem · Centro</p><footer><b class="badge free">Gratuito</b><button type="button" data-toast-message="Detalhes do evento em breve">↗</button></footer></div>
-          </article>
-          <article class="event-card">
-            <div class="event-image"><img src="assets/cultura-galeria.jpg" alt="Pessoas observando trabalhos em uma galeria" /><b class="badge exhibition">Exposição</b><button class="icon-button favorite" type="button" aria-pressed="false" aria-label="Salvar Olhares em trânsito">♡</button></div>
-            <div class="event-copy"><div><small>HOJE · 19:00</small><span>02</span></div><h3>Olhares em trânsito</h3><p>⌖ Galeria Aberta · Rebouças</p><footer><b class="badge verified">✓ Verificado</b><button type="button" data-toast-message="Detalhes do evento em breve">↗</button></footer></div>
-          </article>
-          <article class="event-card compact">
-            <div class="event-image"><img src="assets/cultura-rua.jpg" alt="Apresentação de dança em uma rua com público" /><b class="badge street">Cultura de rua</b></div>
-            <div class="event-copy"><div><small>HOJE · 17:00</small><span>03</span></div><h3>Corpo na cidade</h3><p>⌖ São Francisco · Centro</p></div>
-          </article>
-        </div>
-      </section>
-
-      <section id="map" class="section map-section">
-        <header class="section-heading inverse-heading"><div><span>08</span><p>Padrões</p></div><h2>Mapa</h2><p>Uma superfície de decisão acompanhada por alternativa em lista.</p></header>
-        <div class="map-layout">
-          <div class="map-canvas" aria-label="Mapa conceitual com três eventos demonstrativos">
-            <div class="map-lines"></div><div class="map-route-one"></div><div class="map-route-two"></div>
-            <button class="pin pin-one is-active" type="button" data-map-event="Jazz no Largo|Hoje · 20:30|Centro" aria-label="Jazz no Largo, hoje às 20:30 no Centro"><span>1</span></button>
-            <button class="pin pin-two" type="button" data-map-event="Olhares em trânsito|Hoje · 19:00|Rebouças" aria-label="Olhares em trânsito, hoje às 19:00 em Rebouças"><span>2</span></button>
-            <button class="pin pin-three" type="button" data-map-event="Corpo na cidade|Hoje · 17:00|São Francisco" aria-label="Corpo na cidade, hoje às 17:00 em São Francisco"><span>3</span></button>
-            <span class="district district-a">Centro</span><span class="district district-b">Rebouças</span>
-            <div class="map-controls"><button type="button" aria-label="Aumentar zoom">+</button><button type="button" aria-label="Diminuir zoom">−</button><button type="button" aria-label="Usar minha localização">⌖</button></div>
-          </div>
-          <aside class="map-detail" aria-live="polite"><span class="badge music">Música</span><small>EVENTO SELECIONADO · 01</small><div><p data-map-time>Hoje · 20:30</p><h3 data-map-title>Jazz no Largo</h3><p data-map-place>Centro</p></div><button class="button discovery" type="button">Ver evento <b>→</b></button></aside>
-        </div>
-      </section>
-
-      <section id="feedback" class="section">
-        <header class="section-heading"><div><span>09</span><p>Padrões</p></div><h2>Feedback</h2><p>Informar o estado, explicar o que aconteceu e oferecer uma próxima ação.</p></header>
-        <div class="feedback-grid">
-          <article class="alert success"><b>✓ Evento salvo</b><p>Você pode encontrá-lo em Favoritos.</p></article>
-          <article class="alert warning"><b>⚠ Horário alterado</b><p>A programação foi atualizada hoje às 14:30.</p></article>
-          <article class="alert error"><b>Evento cancelado</b><p>Informação confirmada pela organização.</p></article>
-          <article class="empty-state"><i aria-hidden="true">⌕</i><h3>Nenhum evento apareceu</h3><p>Tente ampliar a data, a distância ou as categorias.</p><button class="button outline" type="button">Limpar filtros</button></article>
-          <article class="skeleton" aria-label="Conteúdo carregando"><i></i><i></i><i></i><i></i></article>
-        </div>
-      </section>
-
-      <section id="applications" class="section applications-section">
-        <header class="section-heading"><div><span>11</span><p>Ecossistema</p></div><h2>Aplicações</h2><p>A consistência vem de regras compartilhadas, não da repetição do mesmo layout.</p></header>
-        <div class="application-grid">
-          <article class="app-social"><small>54 · REDES SOCIAIS</small><div><b>HOJE · CENTRO</b><h3>A cidade acontece ao redor.</h3><span>Ver programação →</span></div><p>Chamada, data, lugar, categoria, fonte e ação.</p></article>
-          <article class="app-campaign"><small>55 · CAMPANHA DIGITAL</small><img src="assets/cultura-show.jpg" alt="Público em apresentação cultural usado em exemplo de campanha" /><div><h3>Descubra sua próxima cena.</h3><span>Urbura · Curitiba</span></div></article>
-          <article class="app-website"><small>56 · WEBSITE</small><div class="mini-browser"><i></i><i></i><i></i><h3>Uma cidade,<br />muitas cenas.</h3><span>Explorar mapa</span></div></article>
-          <article class="app-mobile"><small>57 · MOBILE</small><div class="mini-phone"><b>CURITIBA · AGORA</b><i></i><i></i><i></i><span>Mapa + lista</span></div></article>
-        </div>
-        <div class="application-status">
-          <article><b>52</b><span>Cartão</span><small>Futuro</small></article><article><b>53</b><span>Papel timbrado</span><small>Futuro</small></article><article><b>58</b><span>Embalagem</span><small>Condicional</small></article><article><b>59</b><span>Sinalização</span><small>Teste local</small></article><article><b>60</b><span>Merch</span><small>Futuro</small></article><article><b>61</b><span>Ambiente</span><small>Teste local</small></article><article><b>62</b><span>Ecossistema</span><small>Diretriz v1</small></article>
-        </div>
-      </section>
-
-      <section id="governance" class="section governance-section">
-        <header class="section-heading"><div><span>12</span><p>Continuidade</p></div><h2>Governança</h2><p>Regras para que outra pessoa encontre, compreenda e aplique o sistema sem depender de explicação oral.</p></header>
-        <div class="governance-grid">
-          <article><small>63 · CHECKLIST</small><ul><li>Logo e proteção</li><li>Cores e contraste</li><li>Tipografia e imagem</li><li>Fonte e atualização</li><li>Acessibilidade</li><li>Arquivo e versão</li></ul></article>
-          <article class="file-tree"><small>64 · BIBLIOTECA</small><pre>Urbura/&#10;├─ 00_Governanca/&#10;├─ 01_Branding/&#10;├─ 02_Design_System/&#10;├─ 05_Prototipos/&#10;└─ Logomarca/</pre></article>
-          <article><small>65 · NOMENCLATURA</small><code>Urbura_[Ativo]_[Variação]_[Cor]_[Orientação]_[Ambiente]_vNN.ext</code><p>Sem “final2”, “novo” ou “cópia”. Datas técnicas usam AAAA-MM-DD.</p></article>
-          <article><small>66 · RESPONSABILIDADE</small><p>O fundador aprova decisões canônicas nesta fase. Alterações registram responsável, data, versão e impacto.</p><small>67 · FECHAMENTO</small><strong>Uma marca. Um sistema.</strong></article>
-        </div>
-      </section>
-
-      <section id="accessibility" class="section accessibility-section">
-        <header class="section-heading"><div><span>10</span><p>Qualidade</p></div><h2>Acessibilidade</h2><p>Critérios mínimos que todo componente deve atender antes de entrar no MVP.</p></header>
-        <div class="check-grid">
-          <article><span>AA</span><h3>Contraste</h3><p>Texto comum atende ao nível AA.</p></article>
-          <article><span>44</span><h3>Alvo mínimo</h3><p>Controles têm pelo menos 44 × 44 px.</p></article>
-          <article><span>⌨</span><h3>Teclado</h3><p>Ordem lógica e foco sempre visível.</p></article>
-          <article><span>200%</span><h3>Ampliação</h3><p>Conteúdo permanece utilizável com zoom.</p></article>
-          <article><span>≠</span><h3>Além da cor</h3><p>Ícone e texto explicam todos os estados.</p></article>
-          <article><span>☷</span><h3>Mapa + lista</h3><p>Eventos também aparecem fora do mapa.</p></article>
-        </div>
-        <footer class="kit-footer"><img src="assets/urbura-logo.svg" alt="Urbura" /><p>A cultura da cidade onde você estiver.</p><span>Brand & UI Kit v2 · Cobertura integral 67/67</span></footer>
-      </section>
-    </main>
-
-    <div class="toast" role="status" aria-live="polite" data-toast></div>
+            @foreach (var faixa in v.PorNicho)
+            {
+                <Trilho Titulo="@faixa.Nicho.Nome" Sub="@faixa.Nicho.Descricao" VerTudo="@($"/nicho/{faixa.Nicho.Slug}")"
+                        Eventos="faixa.Eventos" Agora="agora" />
+            }
+        }
+    }
 </div>
+
+@* Ilha do integrador (já declara o próprio @rendermode e o próprio um-container). *@
+<ConviteInstalar />
+
+<style>
+    .um-home { padding-block: 0.75rem 2.5rem; }
+    .um-home-topo { display: grid; gap: 0.75rem; padding-top: 0.5rem; }
+    .um-home-titulo { margin: 0.35rem 0 0; font-size: clamp(1.7rem, 6vw, 2.5rem); }
+    .um-home .um-nichos { margin-top: 1.25rem; }
+    .um-home-aviso { margin-top: 1.25rem; }
+    .um-home-aviso-acoes { margin-top: 0.75rem; }
+    .um-home-vazio-acoes { justify-content: center; margin-top: 0.5rem; }
+    .um-home-chamada { margin-block: 1.75rem 0.5rem; }
+    .um-banner .um-selo { justify-self: start; }
+    @@media (min-width: 1025px) {
+        .um-home-topo { grid-template-columns: minmax(0, 1fr) minmax(0, 560px); align-items: end; gap: 2rem; }
+        .um-home-chamada { grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 2rem; }
+        .um-home-chamada h2, .um-home-chamada p { grid-column: 1; }
+        .um-home-chamada .um-btn { grid-column: 2; grid-row: 1 / span 2; }
+    }
+</style>
+
+@code {
+    private Vitrine? vitrine;
+    private bool falhou;
+    private DateTime agora;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Um "agora" para a página inteira: todos os selos e rótulos decidem pelo mesmo instante.
+        agora = Relogio.GetUtcNow().UtcDateTime;
+        try
+        {
+            vitrine = await Catalogo.VitrineAsync();
+        }
+        catch (Exception ex)
+        {
+            // Banco fora do ar não derruba a home: aviso honesto no lugar dos trilhos. Só o tipo vai pro log (sem dado).
+            Log.LogWarning("Vitrine indisponível ({Erro}).", ex.GetType().Name);
+            falhou = true;
+        }
+    }
+
+    private static bool Vazia(Vitrine v) =>
+        v.AoVivo.Count == 0 && v.Hoje.Count == 0 && v.Destaques.Count == 0 && v.Gratis.Count == 0
+        && v.FimDeSemana.Count == 0 && v.PorNicho.Count == 0;
+
+    private static string FotoDoNicho(CategoriaDto n) =>
+        string.IsNullOrWhiteSpace(n.ImagemUrl) ? Foto.Card(null) : n.ImagemUrl;
+
+    /// <summary>No banner: quem está ao vivo diz até quando vai; o resto, quando começa.</summary>
+    private string QuandoDoCard(EventoCard e) =>
+        e.SituacaoEm(agora) == SituacaoDoEvento.AoVivo
+            ? Situacao.AteQuando(e.FimUtc, agora)
+            : QuandoDoEvento.Rotulo(e.InicioUtc, agora);
+}

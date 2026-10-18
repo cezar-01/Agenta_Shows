@@ -1,0 +1,91 @@
+@rendermode InteractiveServer
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+@* O convite de instalar o PWA. Android/Chrome: usa o prompt nativo que o pwa.js segurou (só aparece depois que o
+   navegador oferece). iPhone: não existe prompt — mostra o passo a passo do Safari. Já instalado: some. *@
+
+@if (modo != Modo.Escondido)
+{
+    <section class="um-container um-section-tight" aria-labelledby="convite-instalar">
+        <div class="um-card um-convite">
+            <img src="/icons/icon-192.png" alt="" width="56" height="56" />
+            <div>
+                <h2 id="convite-instalar">Tenha a UMURA na tela inicial</h2>
+                @if (modo == Modo.Ios)
+                {
+                    <p>No Safari, toque em <b>Compartilhar</b> e depois em <b>Adicionar à Tela de Início</b>. Abre como app, sem loja.</p>
+                }
+                else
+                {
+                    <p>Abre como um app, direto no que está rolando hoje — sem baixar nada da loja.</p>
+                }
+            </div>
+            @if (modo == Modo.Prompt)
+            {
+                <button type="button" class="um-btn um-btn-primary" disabled="@instalando" @onclick="InstalarAsync">Instalar</button>
+            }
+        </div>
+    </section>
+}
+
+<style>
+    .um-convite { display: grid; grid-template-columns: 56px 1fr; gap: 1rem; align-items: center; }
+    .um-convite img { border-radius: var(--um-radius); }
+    .um-convite h2 { margin: 0 0 0.2rem; font-size: 1.1rem; }
+    .um-convite p { margin: 0; color: var(--um-ink-soft); font-size: 0.9375rem; }
+    .um-convite .um-btn { grid-column: 1 / -1; justify-self: start; }
+    @@media (min-width: 641px) {
+        .um-convite { grid-template-columns: 56px 1fr auto; }
+        .um-convite .um-btn { grid-column: auto; }
+    }
+</style>
+
+@code {
+    private enum Modo { Escondido, Prompt, Ios }
+
+    private Modo modo = Modo.Escondido;
+    private bool instalando;
+    private CancellationTokenSource? fim;
+
+    protected override async Task OnAfterRenderAsync(bool primeiro)
+    {
+        if (!primeiro) return;
+        fim = new CancellationTokenSource();
+        try
+        {
+            if (await JS.InvokeAsync<bool>("umPwa.instalado")) return;
+            if (await JS.InvokeAsync<bool>("umPwa.ehIos")) { modo = Modo.Ios; StateHasChanged(); return; }
+
+            // O Chrome oferece o prompt depois de um tempo de uso: pergunta algumas vezes antes de desistir.
+            for (var i = 0; i < 10 && !fim.IsCancellationRequested; i++)
+            {
+                if (await JS.InvokeAsync<bool>("umPwa.podeInstalar")) { modo = Modo.Prompt; StateHasChanged(); return; }
+                await Task.Delay(3000, fim.Token);
+            }
+        }
+        catch (Exception e) when (e is JSException or JSDisconnectedException or TaskCanceledException or InvalidOperationException)
+        {
+            // Sem o pwa.js ou o circuito caiu: o convite simplesmente não aparece.
+        }
+    }
+
+    private async Task InstalarAsync()
+    {
+        if (instalando) return;
+        instalando = true;
+        try
+        {
+            var r = await JS.InvokeAsync<string>("umPwa.instalar");
+            if (r is "accepted" or "unavailable") modo = Modo.Escondido;
+        }
+        catch (Exception e) when (e is JSException or JSDisconnectedException) { }
+        finally { instalando = false; }
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        fim?.Cancel();
+        fim?.Dispose();
+        return ValueTask.CompletedTask;
+    }
+}

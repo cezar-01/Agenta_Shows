@@ -1,0 +1,708 @@
+@page "/organizador/evento/novo"
+@page "/organizador/evento/{Id:int}"
+@attribute [Authorize(Roles = Papeis.OrganizadorOuAdmin)]
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@using System.Globalization
+@inject IAreaDoOrganizador Area
+@inject ICatalogo CatalogoSvc
+@inject TimeProvider Relogio
+@inject NavigationManager Nav
+@inject ILogger<EditarEvento> Log
+
+@* Cadastro e edição do evento. A hora é a de Brasília (o que a pessoa digita) e o serviço converte para UTC; o ponto
+   no mapa vem do mapa-alfinete.js, que escreve "lat,lng" no #um-coords e dispara change (o @bind lê dali). O serviço
+   valida tudo de novo e devolve a mensagem que a tela mostra no topo. *@
+
+<PageTitle>@(EhNovo ? "Novo evento" : "Editar evento") · UMURA</PageTitle>
+
+<div class="um-container orge">
+    <header class="um-pagina-cab">
+        <a href="/organizador" class="orge-voltar">← Meus eventos</a>
+        <span class="um-eyebrow">@(EhNovo ? "Novo evento" : "Editar evento")</span>
+        <h1>@(EhNovo ? "Cadastre seu evento" : linha?.Titulo ?? "Editar evento")</h1>
+        @if (EhNovo)
+        {
+            <p>O básico, quando, onde, uma ilustração e os ingressos. Dá para salvar como rascunho e publicar depois.</p>
+        }
+        else if (linha is not null)
+        {
+            <div class="um-row orge-links">
+                <a href="@($"/organizador/evento/{linha.Id}/vendas")" class="um-btn um-btn-ghost">Ver vendas</a>
+                @if (linha.Status != StatusDoEvento.Rascunho)
+                {
+                    <a href="@($"/evento/{linha.Slug}")" class="um-btn um-btn-ghost">Ver a página</a>
+                }
+            </div>
+        }
+    </header>
+
+    @if (carregando)
+    {
+        <p class="um-visually-hidden" role="status">Carregando o formulário…</p>
+        <div class="um-card orge-secao" aria-hidden="true">
+            <span class="um-skeleton orge-sk-titulo"></span>
+            <span class="um-skeleton orge-sk-campo"></span>
+            <span class="um-skeleton orge-sk-campo"></span>
+            <span class="um-skeleton orge-sk-area"></span>
+        </div>
+    }
+    else if (erroCarga is not null)
+    {
+        <div class="um-alert um-alert-danger" role="alert">
+            <div><b>Não deu para abrir o formulário.</b> @erroCarga</div>
+        </div>
+        <div><a href="/organizador" class="um-btn um-btn-outline">Voltar aos meus eventos</a></div>
+    }
+    else if (naoEncontrado || form is null)
+    {
+        <div class="um-card um-empty">
+            <h2>Evento não encontrado</h2>
+            <p>Ele não existe ou não é um dos seus eventos.</p>
+            <a href="/organizador" class="um-btn um-btn-primary">Voltar aos meus eventos</a>
+        </div>
+    }
+    else
+    {
+        @if (erro is not null)
+        {
+            <div @ref="erroRef" id="orge-erro" class="um-alert um-alert-danger orge-erro" role="alert" tabindex="-1">
+                <div><b>@erroTitulo</b> @erro</div>
+            </div>
+        }
+        @if (cancelado)
+        {
+            <div class="um-alert um-alert-warning" role="status">
+                <div><b>Este evento foi cancelado.</b> Evento cancelado não pode mais ser editado.</div>
+            </div>
+        }
+
+        <EditForm Model="form" OnValidSubmit="SalvarAsync" OnInvalidSubmit="Invalido" class="orge-form" data-um-motion="card-in">
+
+            @* ── O básico ── *@
+            <section class="um-card orge-secao" aria-labelledby="orge-s-basico">
+                <h2 id="orge-s-basico" class="orge-h2">O básico</h2>
+                <div class="um-form">
+                    <div class="um-field">
+                        <label class="um-label" for="orge-titulo">Título</label>
+                        <InputText id="orge-titulo" class="um-input" @bind-Value="form.Titulo" maxlength="120" autocomplete="off" placeholder="Ex.: Noite de Jazz no Largo" />
+                        <span class="um-hint">De 4 a 120 caracteres.</span>
+                    </div>
+                    <div class="um-field">
+                        <label class="um-label" for="orge-resumo">Resumo</label>
+                        <input id="orge-resumo" class="um-input" @bind="form.Resumo" @bind:event="oninput" maxlength="200" autocomplete="off"
+                               aria-describedby="orge-resumo-conta" placeholder="Uma linha: o que é e por que ir" />
+                        <span id="orge-resumo-conta" class="um-hint orge-conta">@((form.Resumo ?? string.Empty).Length)/200 · aparece no card</span>
+                    </div>
+                    <div class="um-field">
+                        <label class="um-label" for="orge-descricao">Descrição</label>
+                        <InputTextArea id="orge-descricao" class="um-textarea" @bind-Value="form.Descricao" rows="6" maxlength="4000"
+                                       placeholder="Programação, atrações, o que levar, acessibilidade..." />
+                    </div>
+                    <div class="um-form-2">
+                        <div class="um-field">
+                            <label class="um-label" for="orge-nicho">Nicho</label>
+                            <InputSelect id="orge-nicho" class="um-select" @bind-Value="form.CategoriaId" @bind-Value:after="NichoMudou">
+                                <option value="0">Escolha o nicho</option>
+                                @foreach (var nicho in nichos)
+                                {
+                                    <option value="@nicho.Id">@nicho.Nome</option>
+                                }
+                            </InputSelect>
+                        </div>
+                        <div class="um-field">
+                            <label class="um-label" for="orge-classificacao">Classificação</label>
+                            <InputSelect id="orge-classificacao" class="um-select" @bind-Value="form.ClassificacaoIndicativa">
+                                <option value="0">Livre</option>
+                                <option value="10">10 anos</option>
+                                <option value="12">12 anos</option>
+                                <option value="14">14 anos</option>
+                                <option value="16">16 anos</option>
+                                <option value="18">18 anos</option>
+                            </InputSelect>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            @* ── Quando ── *@
+            <section class="um-card orge-secao" aria-labelledby="orge-s-quando">
+                <h2 id="orge-s-quando" class="orge-h2">Quando</h2>
+                <div class="um-form-2">
+                    <div class="um-field">
+                        <label class="um-label" for="orge-inicio">Começa</label>
+                        <InputDate Type="InputDateType.DateTimeLocal" id="orge-inicio" class="um-input" @bind-Value="form.InicioLocal"
+                                   @bind-Value:after="InicioMudou" ParsingErrorMessage="Data e hora de início inválidas." />
+                        <ValidationMessage For="() => form.InicioLocal" class="um-error" />
+                    </div>
+                    <div class="um-field">
+                        <label class="um-label" for="orge-fim">Termina</label>
+                        <InputDate Type="InputDateType.DateTimeLocal" id="orge-fim" class="um-input" @bind-Value="form.FimLocal"
+                                   ParsingErrorMessage="Data e hora de fim inválidas." />
+                        <ValidationMessage For="() => form.FimLocal" class="um-error" />
+                    </div>
+                </div>
+                <span class="um-hint">Horário de Brasília. O fim precisa ser depois do início (até 31 dias de evento).</span>
+            </section>
+
+            @* ── Onde ── *@
+            <section class="um-card orge-secao" aria-labelledby="orge-s-onde">
+                <h2 id="orge-s-onde" class="orge-h2">Onde</h2>
+                <div class="um-form">
+                    <div class="um-field">
+                        <label class="um-label" for="orge-local">Nome do local</label>
+                        <InputText id="orge-local" class="um-input" @bind-Value="form.LocalNome" maxlength="120" autocomplete="off" placeholder="Ex.: Teatro Guaíra" />
+                    </div>
+                    <div class="um-form-2">
+                        <div class="um-field">
+                            <label class="um-label" for="orge-endereco">Endereço</label>
+                            <InputText id="orge-endereco" class="um-input" @bind-Value="form.Endereco" maxlength="200" autocomplete="off" placeholder="Rua, número" />
+                        </div>
+                        <div class="um-field">
+                            <label class="um-label" for="orge-bairro">Bairro</label>
+                            <InputText id="orge-bairro" class="um-input" @bind-Value="form.Bairro" maxlength="80" autocomplete="off" placeholder="Ex.: Centro" />
+                        </div>
+                    </div>
+                    <div class="um-field">
+                        <span class="um-label" id="orge-mapa-rotulo">Ponto no mapa</span>
+                        <div class="um-mini-mapa orge-mapa" role="region" aria-labelledby="orge-mapa-rotulo"
+                             data-mapa-alfinete data-mapa-arrastavel
+                             data-mapa-centro="-25.4284,-49.2733"
+                             data-mapa-ponto="@pontoInicial"
+                             data-mapa-campo="#um-coords"
+                             data-mapa-gps="#um-gps"
+                             data-mapa-zoom="14"></div>
+                        <span class="um-hint">Toque no mapa ou arraste o alfinete até a porta do local. No teclado: foque o alfinete e use as setas.</span>
+                    </div>
+                    <div class="um-form-2 orge-coords">
+                        <div class="um-field @(coordsErro is null ? null : "has-error")">
+                            <label class="um-label" for="um-coords">Coordenadas (lat,lng)</label>
+                            <input id="um-coords" class="um-input um-mono" @bind="Coords" @bind:event="onchange" inputmode="decimal"
+                                   autocomplete="off" spellcheck="false" aria-describedby="orge-coords-dica" />
+                            <span id="orge-coords-dica" class="um-hint">O mapa preenche sozinho. Formato: -25.4284,-49.2733</span>
+                            @if (coordsErro is not null)
+                            {
+                                <span class="um-error" role="alert">@coordsErro</span>
+                            }
+                        </div>
+                        <div class="um-field orge-gps">
+                            <button id="um-gps" type="button" class="um-btn um-btn-outline">
+                                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                                    <circle cx="12" cy="12" r="4" /><path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
+                                </svg>
+                                Usar minha localização
+                            </button>
+                            <span class="um-hint">Se o navegador não liberar a localização, marque no mapa.</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            @* ── Foto ── *@
+            <section class="um-card orge-secao" aria-labelledby="orge-s-foto">
+                <h2 id="orge-s-foto" class="orge-h2">Ilustração</h2>
+                <div class="orge-foto-grade">
+                    <div class="um-capa orge-capa">
+                        @if (string.IsNullOrWhiteSpace(form.ImagemUrl))
+                        {
+                            <div class="orge-capa-vazia">Escolha uma ilustração da galeria</div>
+                        }
+                        else
+                        {
+                            <img src="@Foto.Cheia(form.ImagemUrl)" alt="Prévia da foto escolhida" width="1280" height="720" decoding="async" />
+                        }
+                    </div>
+                    <div class="um-stack">
+                        <div class="um-row">
+                            <button type="button" class="um-chip" aria-pressed="@(todasAsFotos ? "true" : "false")" @onclick="AlternarTodasAsFotos">
+                                Ilustrações de todos os nichos
+                            </button>
+                        </div>
+                        <div class="um-galeria orge-galeria" role="group" aria-label="Galeria de ilustrações">
+                            @foreach (var url in galeria)
+                            {
+                                var escolhida = url == form.ImagemUrl;
+                                <button type="button" @key="url" aria-pressed="@(escolhida ? "true" : "false")" aria-label="@NomeDaFoto(url)"
+                                        @onclick="() => EscolherFoto(url)">
+                                    <img src="@Foto.Card(url)" alt="" width="320" height="180" loading="lazy" decoding="async" />
+                                </button>
+                            }
+                        </div>
+                        <span class="um-hint">A ilustração escolhida fica com a borda e o ✓.</span>
+                    </div>
+                </div>
+            </section>
+
+            @* ── Ingressos ── *@
+            <section class="um-card orge-secao" aria-labelledby="orge-s-ingressos">
+                <h2 id="orge-s-ingressos" class="orge-h2">Ingressos</h2>
+                <p class="um-hint orge-sem-margem">Preço 0 = grátis. O pagamento é simulado: nenhum dinheiro de verdade passa por aqui.</p>
+                <div class="orge-lotes">
+                    @for (var i = 0; i < form.Lotes.Count; i++)
+                    {
+                        var lote = form.Lotes[i];
+                        var n = i + 1;
+                        var podeRemover = lote.Id is null && form.Lotes.Count > 1;
+                        <fieldset class="orge-lote" @key="lote">
+                            <legend>Tipo de ingresso @n</legend>
+                            <div class="um-form-2">
+                                <div class="um-field">
+                                    <label class="um-label" for="@($"orge-lote-{n}-nome")">Nome</label>
+                                    <InputText id="@($"orge-lote-{n}-nome")" class="um-input" @bind-Value="lote.Nome" maxlength="60" autocomplete="off" placeholder="Inteira, Meia, VIP..." />
+                                </div>
+                                <div class="um-field">
+                                    <label class="um-label" for="@($"orge-lote-{n}-desc")">Descrição <span class="orge-opcional">(opcional)</span></label>
+                                    <InputText id="@($"orge-lote-{n}-desc")" class="um-input" @bind-Value="lote.Descricao" maxlength="160" autocomplete="off" placeholder="Ex.: até 30/10 ou com 1kg de alimento" />
+                                </div>
+                                <div class="um-field">
+                                    <label class="um-label" for="@($"orge-lote-{n}-preco")">Preço (R$)</label>
+                                    <InputNumber TValue="decimal" id="@($"orge-lote-{n}-preco")" class="um-input" @bind-Value="lote.Preco" min="0" max="5000" step="0.01"
+                                                 inputmode="decimal" ParsingErrorMessage="Digite o preço em reais (0 = grátis)." />
+                                    <span class="um-hint">@PrecoTexto(lote.Preco)</span>
+                                    <ValidationMessage For="() => lote.Preco" class="um-error" />
+                                </div>
+                                <div class="um-field">
+                                    <label class="um-label" for="@($"orge-lote-{n}-qtd")">Quantidade</label>
+                                    <InputNumber TValue="int" id="@($"orge-lote-{n}-qtd")" class="um-input" @bind-Value="lote.Quantidade" min="1" max="100000" step="1"
+                                                 inputmode="numeric" ParsingErrorMessage="Digite a quantidade de ingressos." />
+                                    <ValidationMessage For="() => lote.Quantidade" class="um-error" />
+                                </div>
+                            </div>
+                            <div class="orge-lote-pe">
+                                @if (lote.Id is not null)
+                                {
+                                    <span class="um-hint">Já salvo: não dá para remover (pode ter ingresso vendido). Para parar de vender, deixe a quantidade igual ao vendido.</span>
+                                }
+                                else
+                                {
+                                    <span></span>
+                                }
+                                <button type="button" class="um-btn um-btn-ghost" disabled="@(!podeRemover)" @onclick="() => RemoverLote(lote)">
+                                    Remover<span class="um-visually-hidden"> o tipo de ingresso @n</span>
+                                </button>
+                            </div>
+                        </fieldset>
+                    }
+                </div>
+                <div class="um-row">
+                    <button type="button" class="um-btn um-btn-outline" @onclick="AdicionarLote" disabled="@(form.Lotes.Count >= AreaDoOrganizador.MaximoDeLotes)">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+                        Adicionar tipo de ingresso
+                    </button>
+                    <span class="um-hint">@form.Lotes.Count de @AreaDoOrganizador.MaximoDeLotes</span>
+                </div>
+            </section>
+
+            @* ── Publicação ── *@
+            <section class="um-card orge-secao" aria-labelledby="orge-s-publicar">
+                <h2 id="orge-s-publicar" class="orge-h2">Publicação</h2>
+                <label class="um-check" for="orge-publicar">
+                    <InputCheckbox id="orge-publicar" @bind-Value="form.Publicar" />
+                    <span>
+                        <b>Publicar agora</b>
+                        <span class="um-hint">Desmarcado = rascunho: só você vê, e ele não aparece na vitrine.</span>
+                    </span>
+                </label>
+            </section>
+
+            @* ── Ações ── *@
+            <div class="orge-barra">
+                <button type="submit" class="um-btn um-btn-primary um-btn-lg" disabled="@(salvando || cancelado)">
+                    @(salvando ? "Salvando…" : "Salvar")
+                </button>
+                <span class="orge-espaco"></span>
+                @if (!EhNovo && !cancelado)
+                {
+                    @if (confirmarCancelamento)
+                    {
+                        <span class="orge-confirma" role="alert">Cancelar tira o evento da vitrine e não tem volta. Confirma?</span>
+                        <button type="button" class="um-btn um-btn-danger" @onclick="CancelarEventoAsync" disabled="@cancelando">
+                            @(cancelando ? "Cancelando…" : "Sim, cancelar evento")
+                        </button>
+                        <button type="button" class="um-btn um-btn-ghost" @onclick="DesistirDoCancelamento" disabled="@cancelando">Não</button>
+                    }
+                    else
+                    {
+                        <button type="button" class="um-btn um-btn-danger" @onclick="CancelarEventoAsync">Cancelar evento</button>
+                    }
+                }
+            </div>
+        </EditForm>
+    }
+</div>
+
+@code {
+    [Parameter] public int? Id { get; set; }
+
+    [CascadingParameter] private Task<AuthenticationState>? Estado { get; set; }
+
+    private bool EhNovo => Id is null;
+
+    private EventoForm? form;
+    private LinhaDoMeuEvento? linha;
+    private IReadOnlyList<CategoriaDto> nichos = [];
+    private IReadOnlyList<string> galeria = [];
+    private bool todasAsFotos;
+    private string pontoInicial = "-25.4284,-49.2733";
+    private string? coordsErro;
+
+    private bool carregando = true;
+    private bool naoEncontrado;
+    private string? erroCarga;
+    private string? erro;
+    private string erroTitulo = "Não deu para salvar.";
+    private bool focarErro;
+    private ElementReference erroRef;
+
+    private bool salvando;
+    private bool cancelando;
+    private bool confirmarCancelamento;
+
+    private bool jaCarregou;
+    private int? idCarregado;
+
+    private bool cancelado => linha?.Status == StatusDoEvento.Cancelado;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // A mesma instância pode trocar de rota (/novo ↔ /{id}): recarrega só quando o id muda.
+        if (jaCarregou && idCarregado == Id) return;
+        jaCarregou = true;
+        idCarregado = Id;
+        await CarregarAsync();
+    }
+
+    private async Task CarregarAsync()
+    {
+        carregando = true;
+        naoEncontrado = false;
+        erroCarga = null;
+        erro = null;
+        form = null;
+        linha = null;
+        coordsErro = null;
+        confirmarCancelamento = false;
+        try
+        {
+            var user = await UsuarioAsync();
+            nichos = await CatalogoSvc.NichosAsync();
+            if (Id is { } id)
+            {
+                var f = await Area.ParaEditarAsync(user, id);
+                if (f is null)
+                {
+                    naoEncontrado = true;
+                    return;
+                }
+                // O formulário não traz status nem slug: a linha da lista dá os dois (cancelado? tem página pública?).
+                linha = (await Area.MeusEventosAsync(user)).FirstOrDefault(l => l.Id == id);
+                form = f;
+            }
+            else
+            {
+                Autorizacao.EnsureOrganizador(user);
+                form = Novo();
+            }
+            pontoInicial = Coords;
+            AtualizarGaleria(manterEscolha: true);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            erroCarga = ex.Message;
+        }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "Falha ao abrir o formulário do evento {Id}.", Id);
+            erroCarga = "O formulário não carregou agora. Tente de novo em instantes.";
+        }
+        finally
+        {
+            carregando = false;
+        }
+    }
+
+    /// <summary>Evento novo: próximo sábado das 20h às 23h (Brasília) e um lote "Ingresso" grátis de 100.</summary>
+    private EventoForm Novo()
+    {
+        var agora = Relogio.GetUtcNow().UtcDateTime;
+        var hoje = BrazilTime.DataEmBrasilia(agora);
+        var ateSabado = ((int)DayOfWeek.Saturday - (int)hoje.DayOfWeek + 7) % 7;
+        if (ateSabado == 0 && BrazilTime.ToBrasilia(agora).Hour >= 18) ateSabado = 7;
+        var sabado = hoje.AddDays(ateSabado);
+        return new EventoForm
+        {
+            InicioLocal = sabado.ToDateTime(new TimeOnly(20, 0)),
+            FimLocal = sabado.ToDateTime(new TimeOnly(23, 0)),
+            Publicar = true,
+            Lotes = [new LoteForm { Nome = "Ingresso", Preco = 0m, Quantidade = 100 }],
+        };
+    }
+
+    /// <summary>Quem está na sessão (o serviço reconfere papel e dono em toda chamada).</summary>
+    private async Task<ClaimsPrincipal> UsuarioAsync() =>
+        Estado is null ? new ClaimsPrincipal(new ClaimsIdentity()) : (await Estado).User;
+
+    // ── Mapa ──────────────────────────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>"lat,lng" com ponto decimal — o mesmo texto que o mapa-alfinete.js escreve e lê.</summary>
+    private string Coords
+    {
+        get => form is null
+            ? string.Empty
+            : form.Latitude.ToString("0.######", CultureInfo.InvariantCulture) + "," + form.Longitude.ToString("0.######", CultureInfo.InvariantCulture);
+        set
+        {
+            if (form is null) return;
+            var partes = (value ?? string.Empty).Split(',', StringSplitOptions.TrimEntries);
+            if (partes.Length == 2
+                && double.TryParse(partes[0], NumberStyles.Float, CultureInfo.InvariantCulture, out var lat)
+                && double.TryParse(partes[1], NumberStyles.Float, CultureInfo.InvariantCulture, out var lng)
+                && lat is >= -90 and <= 90 && lng is >= -180 and <= 180)
+            {
+                form.Latitude = lat;
+                form.Longitude = lng;
+                coordsErro = null;
+            }
+            else
+            {
+                coordsErro = "Use o formato lat,lng com ponto, por exemplo -25.4284,-49.2733.";
+            }
+        }
+    }
+
+    // ── Datas ─────────────────────────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>Mexeu no início e o fim ficou para trás: o fim anda junto (3 h depois).</summary>
+    private void InicioMudou()
+    {
+        if (form is not null && form.FimLocal <= form.InicioLocal) form.FimLocal = form.InicioLocal.AddHours(3);
+    }
+
+    // ── Foto ──────────────────────────────────────────────────────────────────────────────────────────────────
+
+    private string? SlugDoNicho => form is null ? null : nichos.FirstOrDefault(n => n.Id == form.CategoriaId)?.Slug;
+
+    /// <summary>
+    /// A galeria do nicho escolhido (sem nicho, ou com "todos", a galeria inteira). Ao abrir, a foto atual entra na lista
+    /// mesmo que seja de outro nicho; ao trocar de nicho, uma foto de fora (ou nenhuma) vira a primeira do nicho novo.
+    /// </summary>
+    private void AtualizarGaleria(bool manterEscolha)
+    {
+        if (form is null) return;
+        var lista = Area.GaleriaDeFotos(todasAsFotos ? null : SlugDoNicho).ToList();
+        var temEscolha = !string.IsNullOrWhiteSpace(form.ImagemUrl);
+        if (manterEscolha)
+        {
+            if (temEscolha && !lista.Contains(form.ImagemUrl)) lista.Insert(0, form.ImagemUrl);
+        }
+        else if ((!temEscolha || !lista.Contains(form.ImagemUrl)) && lista.Count > 0 && SlugDoNicho is not null)
+        {
+            form.ImagemUrl = lista[0];
+        }
+        galeria = lista;
+    }
+
+    private void NichoMudou() => AtualizarGaleria(manterEscolha: false);
+
+    private void AlternarTodasAsFotos()
+    {
+        todasAsFotos = !todasAsFotos;
+        AtualizarGaleria(manterEscolha: true);
+    }
+
+    private void EscolherFoto(string url)
+    {
+        if (form is not null) form.ImagemUrl = url;
+    }
+
+    /// <summary>"/img/eventos/shows-2" → "Ilustração 2 de Shows" (o nome acessível do botão da galeria).</summary>
+    private string NomeDaFoto(string url)
+    {
+        var arquivo = url[(url.LastIndexOf('/') + 1)..];
+        var traco = arquivo.LastIndexOf('-');
+        if (traco <= 0) return "Ilustração " + arquivo;
+        var slug = arquivo[..traco];
+        var numero = arquivo[(traco + 1)..];
+        var nome = nichos.FirstOrDefault(n => n.Slug == slug)?.Nome ?? slug;
+        return $"Ilustração {numero} de {nome}";
+    }
+
+    // ── Ingressos ─────────────────────────────────────────────────────────────────────────────────────────────
+
+    private void AdicionarLote()
+    {
+        if (form is null || form.Lotes.Count >= AreaDoOrganizador.MaximoDeLotes) return;
+        form.Lotes.Add(new LoteForm { Nome = string.Empty, Preco = 0m, Quantidade = 100 });
+    }
+
+    /// <summary>Só sai o lote que ainda não foi salvo (o salvo pode ter venda) e nunca o último.</summary>
+    private void RemoverLote(LoteForm lote)
+    {
+        if (form is null || lote.Id is not null || form.Lotes.Count <= 1) return;
+        form.Lotes.Remove(lote);
+    }
+
+    private static string PrecoTexto(decimal preco) => preco switch
+    {
+        <= 0m => "Grátis",
+        > 5000m => "Acima do limite de R$ 5.000",
+        _ => Dinheiro.Reais((int)Math.Round(preco * 100m, MidpointRounding.AwayFromZero)),
+    };
+
+    // ── Salvar e cancelar ─────────────────────────────────────────────────────────────────────────────────────
+
+    private async Task SalvarAsync()
+    {
+        if (form is null || salvando || cancelado) return;
+        erro = null;
+        salvando = true;
+        try
+        {
+            var r = await Area.SalvarAsync(await UsuarioAsync(), form);
+            if (r.Ok)
+            {
+                var como = form.Publicar ? "publicado" : "rascunho";
+                Nav.NavigateTo($"/organizador?salvo={Uri.EscapeDataString(r.Valor ?? string.Empty)}&como={como}");
+                return;
+            }
+            MostrarErro("Não deu para salvar.", r.Erro ?? "Confira os campos e tente de novo.");
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            MostrarErro("Não deu para salvar.", ex.Message);
+        }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "Falha ao salvar o evento {Id}.", Id);
+            MostrarErro("Não deu para salvar.", "Algo falhou do nosso lado. Tente de novo em instantes.");
+        }
+        finally
+        {
+            salvando = false;
+        }
+    }
+
+    private void Invalido() =>
+        MostrarErro("Tem campo com valor inválido.", "Confira as datas, os preços e as quantidades marcados abaixo.");
+
+    private async Task CancelarEventoAsync()
+    {
+        if (Id is not { } id || cancelando) return;
+        // Dois cliques: o primeiro só pede a confirmação.
+        if (!confirmarCancelamento)
+        {
+            confirmarCancelamento = true;
+            return;
+        }
+        cancelando = true;
+        erro = null;
+        try
+        {
+            var r = await Area.CancelarAsync(await UsuarioAsync(), id);
+            if (r.Ok)
+            {
+                Nav.NavigateTo("/organizador?cancelado=1");
+                return;
+            }
+            MostrarErro("Não deu para cancelar.", r.Erro ?? "Tente de novo.");
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            MostrarErro("Não deu para cancelar.", ex.Message);
+        }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "Falha ao cancelar o evento {Id}.", id);
+            MostrarErro("Não deu para cancelar.", "Algo falhou do nosso lado. Tente de novo em instantes.");
+        }
+        finally
+        {
+            cancelando = false;
+            confirmarCancelamento = false;
+        }
+    }
+
+    private void DesistirDoCancelamento() => confirmarCancelamento = false;
+
+    private void MostrarErro(string titulo, string mensagem)
+    {
+        erroTitulo = titulo;
+        erro = mensagem;
+        focarErro = true;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // O erro aparece no topo: o foco vai até ele (e a página rola junto), e o leitor de tela lê o role="alert".
+        if (!focarErro || erro is null) return;
+        focarErro = false;
+        try
+        {
+            await erroRef.FocusAsync();
+        }
+        catch (JSException) { }
+        catch (InvalidOperationException) { }
+        catch (TaskCanceledException) { }
+    }
+}
+
+<style>
+    .orge { display: grid; gap: 1.25rem; padding-bottom: var(--um-sec-pad); max-width: 920px; }
+    .orge-voltar { display: inline-flex; align-items: center; min-height: var(--um-tap); font-weight: 600; text-decoration: none; }
+    .orge-links { margin-top: 0.5rem; }
+    .orge-form { display: grid; gap: 1rem; }
+    .orge-secao { display: grid; gap: 1rem; }
+    .orge-h2 { margin: 0; font-size: clamp(1.15rem, 3.2vw, 1.4rem); }
+    .orge-sem-margem { margin: 0; }
+    .orge-conta { font-variant-numeric: tabular-nums; }
+    .orge-opcional { font-weight: 400; color: var(--um-ink-muted); }
+    .orge-erro { scroll-margin-top: calc(var(--um-header) + 1rem); }
+
+    .orge-sk-titulo { display: block; width: 40%; height: 1.5rem; }
+    .orge-sk-campo { display: block; width: 100%; height: 48px; }
+    .orge-sk-area { display: block; width: 100%; height: 120px; }
+
+    .orge-mapa { border: 1px solid var(--um-border-soft); }
+    .orge-coords { align-items: end; }
+    .orge-gps { align-items: flex-start; }
+
+    .orge-foto-grade { display: grid; gap: 1rem; }
+    .orge-capa { margin: 0; border-radius: var(--um-radius); }
+    .orge-capa-vazia { display: grid; place-items: center; height: 100%; padding: 1rem; text-align: center; font-weight: 600; color: var(--um-ink-muted); }
+    .orge-galeria { max-height: 340px; overflow-y: auto; padding: 2px; }
+    .orge-galeria button { position: relative; }
+    .orge-galeria button[aria-pressed="true"]::after {
+        content: "✓";
+        position: absolute; right: 6px; top: 6px;
+        display: grid; place-items: center;
+        width: 24px; height: 24px;
+        border-radius: var(--um-radius-pill);
+        background: var(--um-accent); color: var(--um-accent-ink);
+        font-weight: 700; font-size: 0.875rem;
+    }
+
+    .orge-lotes { display: grid; gap: 0.75rem; }
+    .orge-lote { display: grid; gap: 0.75rem; min-width: 0; margin: 0; padding: 1rem; border: 1px solid var(--um-border-soft); border-radius: var(--um-radius); background: var(--um-surface-3); }
+    .orge-lote legend { padding: 0 0.35rem; font-size: 0.875rem; font-weight: 600; color: var(--um-ink-soft); }
+    .orge-lote-pe { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem; }
+
+    .orge-barra {
+        position: sticky;
+        bottom: calc(var(--um-bottomnav) + 0.5rem);
+        z-index: var(--um-z-sticky);
+        display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem;
+        padding: 0.75rem;
+        border: 1px solid var(--um-border-soft);
+        border-radius: var(--um-radius-lg);
+        background: var(--um-surface);
+        box-shadow: var(--um-shadow-lg);
+    }
+    .orge-espaco { flex: 1 1 0; }
+    .orge-confirma { flex-basis: 100%; font-size: 0.9rem; font-weight: 600; color: var(--um-danger); }
+
+    @@media (min-width: 900px) {
+        .orge-foto-grade { grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); align-items: start; }
+    }
+    @@media (min-width: 1025px) {
+        .orge-barra { bottom: 1rem; }
+    }
+</style>

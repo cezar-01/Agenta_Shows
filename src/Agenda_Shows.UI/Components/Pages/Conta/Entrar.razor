@@ -1,0 +1,148 @@
+@page "/entrar"
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.RateLimiting
+@* SSR estático: o formulário posta para a própria página e o cookie da sessão nasce no servidor.
+   O teto por IP vem da política "padrao" (a única que existe hoje no Program.cs). *@
+@attribute [EnableRateLimiting("login")]
+@inject IContas ServicoDeContas
+@inject NavigationManager Nav
+
+<PageTitle>Entrar · UMURA</PageTitle>
+<HeadContent>
+    <meta name="robots" content="noindex" />
+</HeadContent>
+
+<section class="um-section">
+    <div class="um-container">
+        <div class="um-cartao-auth um-card" data-um-motion="card-in">
+            <a href="/" class="um-logo ent-logo" aria-label="UMURA, início">
+                <LogoUmura />
+                <span>UMURA</span>
+            </a>
+
+            <h1 class="ent-titulo">Entrar</h1>
+            <p class="ent-sub">Seus ingressos, favoritos e eventos num lugar só.</p>
+
+            @if (nomeLogado is not null)
+            {
+                <div class="um-alert um-alert-info ent-aviso" role="status">
+                    <p>Você já está na conta de <b>@nomeLogado</b>. <a href="/minha-conta">Ir para Minha conta</a></p>
+                </div>
+            }
+
+            @if (erro is not null)
+            {
+                <div class="um-alert um-alert-danger ent-aviso" role="alert">
+                    <p>@erro</p>
+                </div>
+            }
+
+            <EditForm Model="Input" method="post" OnValidSubmit="EntrarAsync" OnInvalidSubmit="LimparSenha" FormName="entrar" Enhance class="um-form">
+                <DataAnnotationsValidator />
+
+                <div class="um-field">
+                    <label for="ent-email" class="um-label">E-mail</label>
+                    <InputText id="ent-email" type="email" class="um-input" @bind-Value="Input.Email"
+                               autocomplete="email" inputmode="email" autocapitalize="none" spellcheck="false" />
+                    <ValidationMessage For="() => Input.Email" class="um-error" />
+                </div>
+
+                <div class="um-field">
+                    <label for="ent-senha" class="um-label">Senha</label>
+                    <InputText id="ent-senha" type="password" class="um-input" @bind-Value="Input.Senha"
+                               autocomplete="current-password" />
+                    <ValidationMessage For="() => Input.Senha" class="um-error" />
+                </div>
+
+                <button type="submit" class="um-btn um-btn-primary um-btn-lg um-btn-block">Entrar</button>
+            </EditForm>
+
+            <p class="ent-rodape">Ainda não tem conta? <a href="@LinkCriarConta">Criar conta</a></p>
+
+            <div class="um-simulacao ent-demo" role="note">
+                <span>Contas de demonstração: veja o README do projeto (seção Contas de teste).</span>
+            </div>
+        </div>
+    </div>
+</section>
+
+<style>
+    .ent-logo { margin-bottom: 0.75rem; }
+    .ent-titulo { margin: 0 0 0.25rem; }
+    .ent-sub { margin: 0 0 1.25rem; color: var(--um-ink-soft); }
+    .ent-aviso { margin-bottom: 1rem; }
+    .ent-aviso p { margin: 0; }
+    .ent-rodape { margin: 1.25rem 0 0; text-align: center; color: var(--um-ink-soft); }
+    .ent-rodape a { display: inline-flex; align-items: center; min-height: var(--um-tap); font-weight: 600; }
+    .ent-demo { margin-top: 1rem; font-size: 0.8125rem; }
+    .um-cartao-auth .um-input.invalid { border-color: var(--um-danger); }
+</style>
+
+@code {
+    [CascadingParameter] private HttpContext? HttpContext { get; set; }
+
+    [CascadingParameter] private Task<AuthenticationState>? Estado { get; set; }
+
+    [SupplyParameterFromQuery] private string? ReturnUrl { get; set; }
+
+    [SupplyParameterFromForm(FormName = "entrar")] private Modelo Input { get; set; } = default!;
+
+    private string? erro;
+    private string? nomeLogado;
+
+    /// <summary>O "Criar conta" leva junto o caminho de volta (só se for um caminho deste site).</summary>
+    private string LinkCriarConta
+    {
+        get
+        {
+            var volta = Sessao.VoltaSegura(ReturnUrl);
+            return volta == "/" ? "/criar-conta" : "/criar-conta?returnUrl=" + Uri.EscapeDataString(volta);
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        Input ??= new Modelo();
+
+        var user = Estado is null ? null : (await Estado).User;
+        if (user?.Identity?.IsAuthenticated == true)
+            nomeLogado = user.Identity.Name ?? "sua conta";
+    }
+
+    private async Task EntrarAsync()
+    {
+        var usuario = await ServicoDeContas.AutenticarAsync(Input.Email, Input.Senha);
+
+        // A senha nunca volta no HTML da resposta (o InputText escreveria o valor no atributo value).
+        Input.Senha = string.Empty;
+
+        // Mensagem ÚNICA para e-mail inexistente e senha errada: a tela não diz se a conta existe.
+        if (usuario is null)
+        {
+            erro = "E-mail ou senha incorretos.";
+            return;
+        }
+
+        if (HttpContext is null)
+        {
+            erro = "Não deu para entrar agora. Recarregue a página e tente de novo.";
+            return;
+        }
+
+        await Sessao.EntrarAsync(HttpContext, usuario);
+        Nav.NavigateTo(Sessao.VoltaSegura(ReturnUrl), forceLoad: true);
+    }
+
+    private void LimparSenha() => Input.Senha = string.Empty;
+
+    private sealed class Modelo
+    {
+        [Required(ErrorMessage = "Digite seu e-mail.")]
+        [StringLength(200, ErrorMessage = "Esse e-mail é longo demais.")]
+        public string Email { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Digite sua senha.")]
+        [StringLength(128, ErrorMessage = "Essa senha é longa demais.")]
+        public string Senha { get; set; } = string.Empty;
+    }
+}

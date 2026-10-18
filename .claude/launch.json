@@ -1,0 +1,53 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "umura",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": [
+        "run",
+        "--project",
+        "src/Agenda_Shows.UI",
+        "--urls",
+        "http://localhost:5147"
+      ],
+      "port": 5147
+    },
+    {
+      "name": "umura-banco-teste",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": [
+        "run",
+        "--project",
+        "src/Agenda_Shows.UI",
+        "--no-launch-profile",
+        "--",
+        "--urls",
+        "http://localhost:5311",
+        "--environment",
+        "Development",
+        "--Database:MigrateOnBoot=true"
+      ],
+      "autoPort": false,
+      "port": 5311
+    },
+    {
+      "name": "umura-previa",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": [
+        "run",
+        "--project",
+        "src/Agenda_Shows.UI",
+        "--no-launch-profile",
+        "--",
+        "--urls",
+        "http://localhost:5160",
+        "--environment",
+        "Development",
+        "--ConnectionStrings:DefaultConnection=Data Source=umura-previa.db"
+      ],
+      "autoPort": false,
+      "port": 5160
+    }
+  ]
+}

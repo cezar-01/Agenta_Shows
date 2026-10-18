@@ -1,0 +1,39 @@
+@* O card do evento: foto 16:9 com o selo da situação (AO VIVO pulsa) e o preço, nicho, título, local e quando.
+   O card inteiro é o link — um alvo grande, na zona do polegar. *@
+@inject TimeProvider Relogio
+
+@{
+    var agora = Agora ?? Relogio.GetUtcNow().UtcDateTime;
+    var situacao = Evento.SituacaoEm(agora);
+}
+<a href="/evento/@Evento.Slug" class="um-ev @(Largo ? "is-largo" : "") @(Evento.Esgotado ? "is-esgotado" : "")">
+    <div class="um-ev-foto">
+        <img src="@Foto.Card(Evento.ImagemUrl)" alt="" loading="lazy" decoding="async" width="640" height="360" />
+        <SeloSituacao InicioUtc="Evento.InicioUtc" FimUtc="Evento.FimUtc" Status="Evento.Status" Agora="agora" />
+        <span class="um-ev-preco">@(Evento.Esgotado ? "Esgotado" : Evento.Preco)</span>
+    </div>
+    <div class="um-ev-corpo">
+        <span class="um-ev-nicho">@Evento.CategoriaNome</span>
+        <h3 class="um-ev-titulo">@Evento.Titulo</h3>
+        <p class="um-ev-local">@Evento.LocalNome · @Evento.Bairro</p>
+        <p class="um-ev-quando">
+            @if (situacao == SituacaoDoEvento.AoVivo)
+            {
+                @Situacao.AteQuando(Evento.FimUtc, agora)
+            }
+            else
+            {
+                @QuandoDoEvento.Rotulo(Evento.InicioUtc, agora)
+            }
+        </p>
+    </div>
+</a>
+
+@code {
+    [Parameter, EditorRequired] public EventoCard Evento { get; set; } = default!;
+
+    /// <summary>O "agora" da página inteira (todos os cards decidem pelo mesmo instante). Nulo: o relógio.</summary>
+    [Parameter] public DateTime? Agora { get; set; }
+
+    [Parameter] public bool Largo { get; set; }
+}

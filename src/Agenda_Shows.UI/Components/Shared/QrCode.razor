@@ -1,0 +1,24 @@
+@using QRCoder
+@* Um QR code em PNG embutido (data URI — a CSP aceita img-src data:). Sempre sobre papel claro (--um-papel-qr): o
+   leitor falha sobre fundo escuro. *@
+<img class="um-qr @Classe" src="@src" alt="@Rotulo" width="@Tamanho" height="@Tamanho" />
+
+@code {
+    [Parameter, EditorRequired] public string Texto { get; set; } = string.Empty;
+    [Parameter] public string Rotulo { get; set; } = "QR code";
+    [Parameter] public int Tamanho { get; set; } = 132;
+    [Parameter] public string? Classe { get; set; }
+
+    private string src = string.Empty;
+    private string? feito;
+
+    protected override void OnParametersSet()
+    {
+        if (feito == Texto) return;
+        using var gerador = new QRCodeGenerator();
+        using var dados = gerador.CreateQrCode(Texto, QRCodeGenerator.ECCLevel.M);
+        var png = new PngByteQRCode(dados).GetGraphic(8);
+        src = "data:image/png;base64," + Convert.ToBase64String(png);
+        feito = Texto;
+    }
+}

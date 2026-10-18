@@ -1,0 +1,313 @@
+@page "/evento/{Slug}"
+@using System.Globalization
+@using Microsoft.Extensions.Logging
+@inject ICatalogo Catalogo
+@inject IAnalitica Analitica
+@inject TimeProvider Relogio
+@inject NavigationManager Nav
+@inject ILogger<Evento> Log
+
+@* A página do evento. SSR estático (abre rápido, o Google e o WhatsApp leem os metadados); só a compra e as ações
+   (favoritar, compartilhar) são ilhas interativas. No celular a caixa de compra vem logo depois dos fatos — o
+   ingresso não fica escondido embaixo da descrição; no desktop ela vira a coluna da direita, grudada no topo. *@
+
+<PageTitle>@titulo</PageTitle>
+@if (detalhe is { } cab)
+{
+    <HeadContent>
+        <meta name="description" content="@DescricaoCurta(cab)" />
+        <meta property="og:type" content="website" />
+        <meta property="og:title" content="@cab.Card.Titulo" />
+        <meta property="og:description" content="@DescricaoCurta(cab)" />
+        <meta property="og:image" content="@(Nav.ToAbsoluteUri(Foto.Cheia(cab.Card.ImagemUrl)).ToString())" />
+        <meta property="og:url" content="@(Nav.BaseUri + "evento/" + cab.Card.Slug)" />
+        <meta name="twitter:card" content="summary_large_image" />
+        @((MarkupString)Agenda_Shows.UI.Seo.JsonLdEvento.Bloco(cab, Nav.BaseUri))
+    </HeadContent>
+}
+
+@if (naoAchou)
+{
+    <section class="um-section">
+        <div class="um-container um-empty">
+            <span class="um-eyebrow">404</span>
+            <h1>Não achei esse evento</h1>
+            <p>Ele pode ter saído do ar ou mudado de endereço. Tem muita coisa rolando na agenda.</p>
+            <a href="/eventos" class="um-btn um-btn-primary">Ver a agenda</a>
+        </div>
+    </section>
+}
+else if (falhou)
+{
+    <section class="um-section">
+        <div class="um-container">
+            <h1 class="um-visually-hidden">Evento</h1>
+            <div class="um-alert um-alert-danger" role="alert">
+                <div>
+                    <b>Não consegui carregar este evento agora</b>
+                    Pode ser a conexão ou o nosso servidor. Tente de novo em instantes.
+                </div>
+            </div>
+        </div>
+    </section>
+}
+else if (detalhe is { } d)
+{
+    var c = d.Card;
+    var situacao = c.SituacaoEm(agora);
+    var cancelado = situacao == SituacaoDoEvento.Cancelado;
+    var encerrado = situacao == SituacaoDoEvento.Encerrado;
+    var temMapa = Math.Abs(c.Latitude) > 0.0001 || Math.Abs(c.Longitude) > 0.0001;
+    var ponto = c.Latitude.ToString(CultureInfo.InvariantCulture) + "," + c.Longitude.ToString(CultureInfo.InvariantCulture);
+
+    <div class="um-container um-evento-topo">
+        <div class="um-capa">
+            <img src="@Foto.Cheia(c.ImagemUrl)" alt="" width="1280" height="720" decoding="async" fetchpriority="high" />
+            <SeloSituacao InicioUtc="c.InicioUtc" FimUtc="c.FimUtc" Status="c.Status" Agora="agora" />
+        </div>
+    </div>
+
+    <div class="um-container um-evento-pagina">
+        @if (cancelado)
+        {
+            <div class="um-alert um-alert-danger um-evento-aviso" role="status">
+                <div>
+                    <b>Este evento foi cancelado</b>
+                    A venda de ingressos está fechada. Quem já comprou recebe as orientações do organizador.
+                </div>
+            </div>
+        }
+        else if (encerrado)
+        {
+            <div class="um-alert um-alert-warning um-evento-aviso" role="status">
+                <div>
+                    <b>Este evento já aconteceu</b>
+                    A venda de ingressos foi encerrada. Veja abaixo outros eventos parecidos.
+                </div>
+            </div>
+        }
+
+        <div class="um-evento-grade">
+            <div class="um-evento-info">
+                <a href="/nicho/@c.CategoriaSlug" class="um-eyebrow um-evento-nicho">@c.CategoriaNome</a>
+                <h1 class="um-evento-h1">@c.Titulo</h1>
+                @if (!string.IsNullOrWhiteSpace(c.Resumo))
+                {
+                    <p class="um-lead um-evento-resumo">@c.Resumo</p>
+                }
+
+                <div class="um-row um-evento-badges">
+                    @if (c.Esgotado)
+                    {
+                        <span class="um-badge um-badge-danger">Esgotado</span>
+                    }
+                    else if (c.Gratuito)
+                    {
+                        <span class="um-badge um-badge-success">Grátis</span>
+                    }
+                    else
+                    {
+                        <span class="um-badge">@c.Preco</span>
+                    }
+                    @if (c.Destaque)
+                    {
+                        <span class="um-badge um-badge-info">Destaque UMURA</span>
+                    }
+                </div>
+
+                <ul class="um-fatos">
+                    <li>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" />
+                        </svg>
+                        <div>
+                            <span class="um-fato-rotulo">Quando</span>
+                            <span class="um-tnum">@QuandoCompleto(c)</span>
+                        </div>
+                    </li>
+                    <li>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z" /><circle cx="12" cy="9.5" r="2.5" />
+                        </svg>
+                        <div>
+                            <span class="um-fato-rotulo">Onde</span>
+                            <b>@c.LocalNome</b>
+                            @if (!string.IsNullOrWhiteSpace(d.Endereco))
+                            {
+                                <span class="um-fato-linha">@d.Endereco</span>
+                            }
+                            <span class="um-fato-linha">@c.Bairro · Curitiba</span>
+                        </div>
+                    </li>
+                    <li>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" />
+                        </svg>
+                        <div>
+                            <span class="um-fato-rotulo">Quem organiza</span>
+                            <span>@c.Organizador</span>
+                        </div>
+                    </li>
+                    <li>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M12 3 4 6v6c0 4.5 3.4 8.3 8 9 4.6-.7 8-4.5 8-9V6z" />
+                        </svg>
+                        <div>
+                            <span class="um-fato-rotulo">Classificação</span>
+                            <span>@Classificacao(d.ClassificacaoIndicativa)</span>
+                        </div>
+                    </li>
+                </ul>
+            </div>
+
+            <aside class="um-evento-compra" aria-label="Ingressos">
+                <div class="um-caixa-compra um-card">
+                    <CompraDeIngressos @rendermode="InteractiveServer" EventoId="c.Id" Slug="@c.Slug" Lotes="d.Lotes"
+                                       Encerrado="encerrado" Cancelado="cancelado" />
+                    <AcoesDoEvento @rendermode="InteractiveServer" EventoId="c.Id" Titulo="@c.Titulo" Slug="@c.Slug"
+                                   Favorito="d.Favorito" />
+                </div>
+            </aside>
+
+            <div class="um-evento-detalhes">
+                @if (paragrafos.Count > 0)
+                {
+                    <section class="um-evento-sobre" aria-labelledby="evento-sobre">
+                        <h2 id="evento-sobre">Sobre o evento</h2>
+                        @foreach (var par in paragrafos)
+                        {
+                            <p>@par</p>
+                        }
+                    </section>
+                }
+
+                @if (temMapa)
+                {
+                    <section class="um-evento-onde" aria-labelledby="evento-onde">
+                        <h2 id="evento-onde">Onde fica</h2>
+                        <p class="um-evento-onde-sub">@c.LocalNome · @c.Bairro</p>
+                        <div class="um-mini-mapa" data-mapa-alfinete data-mapa-ponto="@ponto" data-mapa-zoom="15"></div>
+                        <div class="um-row um-evento-mapa-links">
+                            <a href="/mapa" class="um-btn um-btn-outline">Ver no mapa</a>
+                            <a href="@("https://www.openstreetmap.org/directions?to=" + ponto)" class="um-btn um-btn-ghost"
+                               target="_blank" rel="noopener noreferrer">
+                                Como chegar <span class="um-visually-hidden">(abre em outra aba)</span>
+                            </a>
+                        </div>
+                    </section>
+                }
+            </div>
+        </div>
+
+        <Trilho Titulo="@($"Mais de {c.CategoriaNome}")" Sub="Outros eventos do mesmo nicho" VerTudo="@($"/nicho/{c.CategoriaSlug}")"
+                Eventos="d.Relacionados" Agora="agora" />
+    </div>
+}
+
+<style>
+    .um-evento-topo { position: relative; }
+    .um-capa .um-selo { position: absolute; left: 1rem; top: 1rem; }
+    @@media (max-width: 980px) {
+        .um-evento-topo.um-container { padding-left: 0; padding-right: 0; }
+    }
+    .um-evento-pagina { padding-bottom: 2.5rem; }
+    .um-evento-aviso { margin-top: 1.25rem; }
+    .um-evento-grade { padding-top: 1.25rem; grid-template-areas: "info" "compra" "detalhes"; }
+    .um-evento-info { grid-area: info; min-width: 0; }
+    .um-evento-compra { grid-area: compra; min-width: 0; }
+    .um-evento-detalhes { grid-area: detalhes; min-width: 0; }
+    @@media (min-width: 981px) {
+        .um-evento-grade { grid-template-areas: "info compra" "detalhes compra"; grid-template-rows: auto 1fr; column-gap: 2.5rem; }
+    }
+    .um-evento-nicho { text-decoration: none; min-height: var(--um-tap); }
+    .um-evento-nicho:hover { color: var(--um-brand); }
+    .um-evento-h1 { margin: 0.1rem 0 0.5rem; }
+    .um-evento-resumo { max-width: 60ch; margin-bottom: 0.75rem; }
+    .um-evento-badges { margin-bottom: 1.25rem; }
+    .um-fato-rotulo { display: block; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--um-ink-muted); }
+    .um-fato-linha { display: block; color: var(--um-ink-soft); }
+    .um-evento-sobre, .um-evento-onde { padding-top: 1.5rem; }
+    .um-evento-sobre h2, .um-evento-onde h2 { font-size: clamp(1.2rem, 3.6vw, 1.5rem); }
+    .um-evento-sobre p { white-space: pre-line; max-width: 68ch; color: var(--um-ink-soft); }
+    .um-evento-onde-sub { color: var(--um-ink-soft); }
+    .um-evento-mapa-links { margin-top: 0.75rem; }
+    @@media (min-width: 1025px) { .um-evento-sobre p { font-size: 1.0625rem; } }
+</style>
+
+@code {
+    [Parameter] public string Slug { get; set; } = string.Empty;
+
+    [CascadingParameter] private Task<AuthenticationState>? Estado { get; set; }
+
+    private static readonly string[] Semana = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+
+    private EventoDetalhe? detalhe;
+    private IReadOnlyList<string> paragrafos = [];
+    private bool naoAchou;
+    private bool falhou;
+    private DateTime agora;
+    private string titulo = "Evento · UMURA";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        agora = Relogio.GetUtcNow().UtcDateTime;
+        detalhe = null;
+        naoAchou = falhou = false;
+
+        var user = Estado is null ? null : (await Estado).User;
+        var usuarioId = Autorizacao.UsuarioId(user);
+        var slug = (Slug ?? string.Empty).Trim().ToLowerInvariant();
+
+        try
+        {
+            detalhe = slug.Length is > 0 and <= 140 ? await Catalogo.EventoAsync(slug, usuarioId) : null;
+        }
+        catch (Exception ex)
+        {
+            Log.LogWarning("Página do evento indisponível ({Erro}).", ex.GetType().Name);
+            falhou = true;
+            return;
+        }
+
+        if (detalhe is null)
+        {
+            naoAchou = true;
+            titulo = "Evento não encontrado · UMURA";
+            // .NET 10: responde 404 e o Router desenha a NotFoundPage; a mensagem acima é a rede de segurança.
+            Nav.NotFound();
+            return;
+        }
+
+        titulo = $"{detalhe.Card.Titulo} · UMURA";
+        paragrafos = (detalhe.Descricao ?? string.Empty).Replace("\r\n", "\n")
+            .Split("\n\n", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        // SSR estático: este método roda UMA vez por visita (não há prerender duplo). Quem organiza o evento e a equipe
+        // não contam como público. O registro é fire-and-forget e nunca lança.
+        if (usuarioId != detalhe.OrganizadorId && !Autorizacao.EhAdmin(user))
+            Analitica.RegistrarVisualizacao(detalhe.Card.Id);
+    }
+
+    /// <summary>"Sáb, 24/10 · 20:00 até 23:00" — ou "até Dom, 25/10 · 02:00" quando vira o dia. Hora de Brasília.</summary>
+    private static string QuandoCompleto(EventoCard c)
+    {
+        var inicio = $"{Dia(c.InicioUtc)} · {BrazilTime.Format(c.InicioUtc, "HH:mm")}";
+        var fim = BrazilTime.DiasDeCalendario(c.InicioUtc, c.FimUtc) == 0
+            ? BrazilTime.Format(c.FimUtc, "HH:mm")
+            : $"{Dia(c.FimUtc)} · {BrazilTime.Format(c.FimUtc, "HH:mm")}";
+        return $"{inicio} até {fim}";
+    }
+
+    private static string Dia(DateTime utc) =>
+        Semana[(int)BrazilTime.ToBrasilia(utc).DayOfWeek] + ", " + BrazilTime.Format(utc, "dd/MM");
+
+    private static string Classificacao(int idade) => idade <= 0 ? "Livre" : $"{idade}+ (proibido para menores de {idade})";
+
+    private static string DescricaoCurta(EventoDetalhe d)
+    {
+        var c = d.Card;
+        var quando = $"{Dia(c.InicioUtc)} · {BrazilTime.Format(c.InicioUtc, "HH:mm")}";
+        var resumo = string.IsNullOrWhiteSpace(c.Resumo) ? c.Titulo : c.Resumo.Trim();
+        return $"{resumo} — {quando} em {c.LocalNome}, {c.Bairro} (Curitiba).";
+    }
+}

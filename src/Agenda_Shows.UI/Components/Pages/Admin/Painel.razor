@@ -1,0 +1,326 @@
+@page "/admin"
+@attribute [Authorize(Roles = Papeis.Admin)]
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@using System.Globalization
+@inject IAreaDoAdmin Area
+@inject Agenda_Shows.Services.Demo.Semeadura Semeadura
+@inject ILogger<Painel> Log
+
+@* O painel do admin: a cidade inteira numa tela — contas, eventos no ar, vendas, os mais vendidos e as vendas por nicho,
+   os atalhos da moderação e o botão da demonstração. O serviço confere o papel de novo (EnsureAdmin) em cada chamada. *@
+
+<PageTitle>Painel do admin · UMURA</PageTitle>
+
+<div class="um-container adm">
+    <header class="um-pagina-cab">
+        <span class="um-eyebrow">Equipe UMURA</span>
+        <h1>Painel do admin</h1>
+        <p>O que está no ar, o que está vendendo e quem organiza — tudo numa olhada.</p>
+    </header>
+
+    @if (erro is not null)
+    {
+        <div class="um-alert um-alert-danger" role="alert">
+            <div><b>Não deu para abrir o painel.</b> @erro</div>
+        </div>
+        <div>
+            <button type="button" class="um-btn um-btn-outline" @onclick="CarregarAsync">Tentar de novo</button>
+        </div>
+    }
+    else if (painel is null)
+    {
+        <p class="um-visually-hidden" role="status">Carregando o painel…</p>
+        <div class="um-kpis" aria-hidden="true">
+            @for (var i = 0; i < 8; i++)
+            {
+                <div class="um-kpi">
+                    <span class="um-skeleton adm-sk-rotulo"></span>
+                    <span class="um-skeleton adm-sk-valor"></span>
+                </div>
+            }
+        </div>
+        <div class="adm-duas" aria-hidden="true">
+            <div class="um-card"><span class="um-skeleton adm-sk-bloco"></span></div>
+            <div class="um-card"><span class="um-skeleton adm-sk-bloco"></span></div>
+        </div>
+    }
+    else
+    {
+        var kpis = Kpis(painel);
+
+        <section aria-labelledby="adm-resumo">
+            <h2 id="adm-resumo" class="um-visually-hidden">Resumo</h2>
+            <div class="um-kpis">
+                @for (var i = 0; i < kpis.Count; i++)
+                {
+                    var k = kpis[i];
+                    <div class="um-kpi">
+                        <span class="um-kpi-label">@k.Rotulo</span>
+                        <span class="um-kpi-value" @key="@($"{k.Chave}-{k.Alvo}")" data-um-motion="counter" data-um-to="@k.Alvo"
+                              data-um-prefix="@k.Prefixo" data-um-decimals="@k.Casas" data-um-delay="@Atraso(i)">@k.Texto</span>
+                        <span class="um-kpi-sub">@k.Sub</span>
+                    </div>
+                }
+            </div>
+        </section>
+
+        <div class="adm-duas">
+            <section class="um-card adm-bloco" aria-labelledby="adm-top">
+                <div class="adm-sec-cab">
+                    <h2 id="adm-top" class="adm-h2">Mais vendidos</h2>
+                    <a href="/admin/eventos" class="adm-link">Todos os eventos</a>
+                </div>
+                @if (painel.MaisVendidos.Count == 0)
+                {
+                    <p class="um-hint">Nenhum evento cadastrado ainda.</p>
+                }
+                else
+                {
+                    <div class="um-table-wrap">
+                        <table class="um-table">
+                            <caption class="um-visually-hidden">Os eventos que mais venderam ingressos</caption>
+                            <thead>
+                                <tr>
+                                    <th scope="col">Evento</th>
+                                    <th scope="col">Organizador</th>
+                                    <th scope="col" class="num">Vendidos</th>
+                                    <th scope="col" class="num">Receita</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var l in painel.MaisVendidos)
+                                {
+                                    <tr @key="l.Id">
+                                        <td>
+                                            @if (l.Status == StatusDoEvento.Rascunho)
+                                            {
+                                                <b class="adm-titulo">@l.Titulo</b>
+                                            }
+                                            else
+                                            {
+                                                <a href="@($"/evento/{l.Slug}")" class="adm-titulo">@l.Titulo</a>
+                                            }
+                                        </td>
+                                        <td data-rotulo="Organizador">@l.Organizador</td>
+                                        <td data-rotulo="Vendidos" class="num">@Num(l.Vendidos)/@Num(l.Capacidade)</td>
+                                        <td data-rotulo="Receita" class="num">@Dinheiro.Reais(l.ReceitaCentavos)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </section>
+
+            <section class="um-card adm-bloco" aria-labelledby="adm-nichos">
+                <div class="adm-sec-cab">
+                    <h2 id="adm-nichos" class="adm-h2">Vendas por nicho</h2>
+                    <span class="um-hint">ingressos pagos</span>
+                </div>
+                @if (painel.VendasPorNicho.Count == 0)
+                {
+                    <p class="um-hint">Nenhum ingresso pago ainda.</p>
+                }
+                else
+                {
+                    var maior = painel.VendasPorNicho.Max(x => x.Vendidos);
+                    <ol class="um-rank">
+                        @foreach (var (nicho, vendidos) in painel.VendasPorNicho)
+                        {
+                            var pct = maior <= 0 ? 0 : (int)Math.Round(vendidos * 100.0 / maior);
+                            <li>
+                                <span class="adm-rank-nome">@nicho</span>
+                                <span class="um-rank-trilho" aria-hidden="true"><span style="--w:@(pct)%"></span></span>
+                                <b class="um-tnum">@Num(vendidos)<span class="um-visually-hidden"> ingressos</span></b>
+                            </li>
+                        }
+                    </ol>
+                }
+            </section>
+        </div>
+
+        <section class="adm-bloco" aria-labelledby="adm-atalhos">
+            <h2 id="adm-atalhos" class="adm-h2">Atalhos</h2>
+            <div class="um-grid adm-atalhos" data-um-motion="reveal-group">
+                <a href="/admin/eventos" class="um-card um-card-hover adm-atalho">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <rect x="3" y="5" width="18" height="16" rx="2" /><path d="M16 3v4M8 3v4M3 10h18" />
+                    </svg>
+                    <b>Eventos</b>
+                    <span>Destacar na vitrine, editar, ver vendas e cancelar.</span>
+                </a>
+                <a href="/admin/usuarios" class="um-card um-card-hover adm-atalho">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <circle cx="9" cy="8" r="4" /><path d="M2 21a7 7 0 0 1 14 0M17 4a4 4 0 0 1 0 8M22 21a7 7 0 0 0-4-6.3" />
+                    </svg>
+                    <b>Usuários</b>
+                    <span>Quem é público, organizador ou admin.</span>
+                </a>
+                <a href="/admin/pedidos" class="um-card um-card-hover adm-atalho">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M3 8a2 2 0 0 0 0 4v4a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-4a2 2 0 0 1 0-4V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2z" /><path d="M14 4v16" stroke-dasharray="2 2" />
+                    </svg>
+                    <b>Pedidos</b>
+                    <span>Todos os pedidos de ingresso, de todo mundo.</span>
+                </a>
+                <a href="/organizador/evento/novo" class="um-card um-card-hover adm-atalho">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M12 5v14M5 12h14" />
+                    </svg>
+                    <b>Novo evento</b>
+                    <span>Cadastrar um evento de curadoria da equipe.</span>
+                </a>
+            </div>
+        </section>
+
+        <section class="um-card adm-demo" aria-labelledby="adm-demo">
+            <h2 id="adm-demo" class="adm-h2">Demonstração</h2>
+            <p>
+                Os eventos de demonstração têm datas relativas a "agora". Antes de apresentar, traga tudo para hoje: a vitrine
+                volta a ter evento ao vivo, hoje e nos próximos dias. Os eventos cadastrados por organizadores não mudam.
+            </p>
+            <div class="um-row">
+                <button type="button" class="um-btn um-btn-outline um-btn-wrap" disabled="@atualizando"
+                        aria-busy="@(atualizando ? "true" : null)" @onclick="AtualizarDatasAsync">
+                    @(atualizando ? "Atualizando as datas…" : "Trazer as datas dos eventos de demonstração para hoje")
+                </button>
+                <span role="status" class="adm-demo-ok">
+                    @if (datasOk)
+                    {
+                        <span class="um-badge um-badge-success">Datas atualizadas ✓</span>
+                    }
+                </span>
+            </div>
+            @if (erroDemo is not null)
+            {
+                <div class="um-alert um-alert-danger" role="alert">
+                    <div>@erroDemo</div>
+                </div>
+            }
+        </section>
+    }
+</div>
+
+@code {
+    private static readonly CultureInfo PtBr = CultureInfo.GetCultureInfo("pt-BR");
+
+    [CascadingParameter] private Task<AuthenticationState>? Estado { get; set; }
+
+    private ClaimsPrincipal user = new(new ClaimsIdentity());
+    private PainelDoAdmin? painel;
+    private string? erro;
+    private bool atualizando;
+    private bool datasOk;
+    private string? erroDemo;
+
+    /// <summary>Um número do topo. <c>Alvo</c> é o que o contador do motion lê (ponto decimal, sem milhar).</summary>
+    private sealed record Kpi(string Chave, string Rotulo, string Texto, string Alvo, string Sub, string? Prefixo = null, int Casas = 0);
+
+    protected override async Task OnInitializedAsync()
+    {
+        user = Estado is null ? new ClaimsPrincipal(new ClaimsIdentity()) : (await Estado).User;
+        await CarregarAsync();
+    }
+
+    private async Task CarregarAsync()
+    {
+        erro = null;
+        try
+        {
+            painel = await Area.PainelAsync(user);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            painel = null;
+            erro = ex.Message;
+        }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "Falha ao carregar o painel do admin.");
+            painel = null;
+            erro = "O painel não carregou agora. Tente de novo em instantes.";
+        }
+    }
+
+    private async Task AtualizarDatasAsync()
+    {
+        if (atualizando) return;
+        atualizando = true;
+        datasOk = false;
+        erroDemo = null;
+        try
+        {
+            // A página já é só do admin, e a Semeadura não confere papel: o portão fica aqui, no gesto.
+            Autorizacao.EnsureAdmin(user);
+            await Semeadura.AtualizarDatasAsync();
+            datasOk = true;
+            // "Ao vivo agora" e "Eventos no ar" mudam com as datas novas.
+            await CarregarAsync();
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            erroDemo = ex.Message;
+        }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "Falha ao trazer as datas da demonstração para hoje.");
+            erroDemo = "Não deu para atualizar as datas agora. Tente de novo em instantes.";
+        }
+        finally
+        {
+            atualizando = false;
+        }
+    }
+
+    private static IReadOnlyList<Kpi> Kpis(PainelDoAdmin p) =>
+    [
+        new("usu", "Usuários", Num(p.Usuarios), Alvo(p.Usuarios), "contas de público"),
+        new("org", "Organizadores", Num(p.Organizadores), Alvo(p.Organizadores), "coletivos, produtoras e espaços"),
+        new("pub", "Eventos no ar", Num(p.EventosPublicados), Alvo(p.EventosPublicados), "publicados e ainda não terminaram"),
+        new("viv", "Ao vivo agora", Num(p.EventosAoVivo), Alvo(p.EventosAoVivo), "rolando neste minuto"),
+        new("ing", "Ingressos vendidos", Num(p.IngressosVendidos), Alvo(p.IngressosVendidos), "em pedidos pagos"),
+        new("rec", "Receita simulada", Dinheiro.Reais(p.ReceitaCentavos), ReaisInvariante(p.ReceitaCentavos),
+            "pagamento de demonstração: nada foi cobrado", "R$ ", 2),
+        new("agu", "Pedidos aguardando pagamento", Num(p.PedidosAguardando), Alvo(p.PedidosAguardando), "reservas que vencem em 15 min"),
+        new("adm", "Admins", Num(p.Admins), Alvo(p.Admins), "equipe UMURA"),
+    ];
+
+    /// <summary>O atraso do contador: cada fileira de quatro entra em cascata (100 ms entre cards).</summary>
+    private static string Atraso(int i) => (i % 4 * 0.1).ToString("0.0", CultureInfo.InvariantCulture);
+
+    private static string Num(int n) => n.ToString("N0", PtBr);
+
+    private static string Alvo(int n) => n.ToString(CultureInfo.InvariantCulture);
+
+    /// <summary>O alvo do contador em reais com ponto decimal (o JS lê com parseFloat).</summary>
+    private static string ReaisInvariante(int centavos) => (centavos / 100m).ToString("0.00", CultureInfo.InvariantCulture);
+}
+
+<style>
+    .adm { display: grid; gap: 1.25rem; padding-bottom: var(--um-sec-pad); }
+    .adm-h2 { margin: 0; font-size: clamp(1.2rem, 3.4vw, 1.5rem); }
+    .adm-bloco { display: grid; gap: 0.75rem; align-content: start; }
+    .adm-sec-cab { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.25rem 1rem; }
+    .adm-link { display: inline-flex; align-items: center; min-height: var(--um-tap); font-weight: 600; font-size: 0.9375rem; }
+    .adm-duas { display: grid; gap: 1.25rem; }
+    @@media (min-width: 981px) {
+        .adm-duas { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); align-items: start; }
+    }
+
+    .adm-titulo { display: inline-block; font-weight: 600; line-height: 1.3; color: var(--um-brand); }
+    .adm-rank-nome { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    .adm-atalhos { grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr)); }
+    .adm-atalho { display: grid; gap: 0.3rem; align-content: start; min-height: 132px; color: var(--um-ink); text-decoration: none; }
+    .adm-atalho:hover { color: var(--um-ink); }
+    .adm-atalho svg { width: 26px; height: 26px; color: var(--um-brand); margin-bottom: 0.25rem; }
+    .adm-atalho b { font-family: var(--um-display); font-size: 1.15rem; color: var(--um-brand); }
+    .adm-atalho span { font-size: 0.9375rem; color: var(--um-ink-soft); }
+
+    .adm-demo { display: grid; gap: 0.75rem; }
+    .adm-demo p { margin: 0; color: var(--um-ink-soft); max-width: 70ch; }
+
+    .adm-sk-rotulo { display: block; width: 60%; height: 0.8rem; }
+    .adm-sk-valor { display: block; width: 45%; height: 2rem; }
+    .adm-sk-bloco { display: block; width: 100%; height: 220px; }
+</style>

@@ -1,0 +1,42 @@
+@page "/acesso-negado"
+@* Para onde o cookie manda quem entrou mas não tem o papel da área (AccessDeniedPath no Program.cs). *@
+
+<PageTitle>Acesso negado · UMURA</PageTitle>
+<HeadContent>
+    <meta name="robots" content="noindex" />
+</HeadContent>
+
+<section class="um-section">
+    <div class="um-container um-empty">
+        <span class="um-eyebrow">Acesso restrito</span>
+        <h1>Esta área não é da sua conta</h1>
+        <p>Ela é de organizadores ou da equipe da UMURA. Se você acha que deveria entrar aqui, fale com a equipe.</p>
+        <div class="um-row an-acoes">
+            <a href="/" class="um-btn um-btn-primary">Voltar ao início</a>
+            @if (logado)
+            {
+                <a href="/minha-conta" class="um-btn um-btn-outline">Minha conta</a>
+            }
+            else
+            {
+                <a href="/entrar" class="um-btn um-btn-outline">Entrar</a>
+            }
+        </div>
+    </div>
+</section>
+
+<style>
+    .an-acoes { justify-content: center; margin-top: 0.5rem; }
+</style>
+
+@code {
+    [CascadingParameter] private Task<AuthenticationState>? Estado { get; set; }
+
+    private bool logado;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var user = Estado is null ? null : (await Estado).User;
+        logado = user?.Identity?.IsAuthenticated == true;
+    }
+}

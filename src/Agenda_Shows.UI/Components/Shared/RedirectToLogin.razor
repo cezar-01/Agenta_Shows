@@ -1,0 +1,30 @@
+@inject NavigationManager Nav
+@* Quem não entrou vai para /entrar e volta para onde estava; quem entrou mas não tem o papel vê o acesso negado. *@
+@if (logado)
+{
+    <section class="um-section">
+        <div class="um-container um-empty">
+            <span class="um-eyebrow">Acesso restrito</span>
+            <h1>Esta área não é da sua conta</h1>
+            <p>Ela é de organizadores ou da equipe da UMURA.</p>
+            <a href="/" class="um-btn um-btn-primary">Voltar ao início</a>
+        </div>
+    </section>
+}
+
+@code {
+    [CascadingParameter] private Task<AuthenticationState>? Estado { get; set; }
+
+    private bool logado;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var user = Estado is null ? null : (await Estado).User;
+        logado = user?.Identity?.IsAuthenticated == true;
+        if (!logado)
+        {
+            var volta = "/" + Nav.ToBaseRelativePath(Nav.Uri);
+            Nav.NavigateTo("/entrar?returnUrl=" + Uri.EscapeDataString(volta), forceLoad: true);
+        }
+    }
+}

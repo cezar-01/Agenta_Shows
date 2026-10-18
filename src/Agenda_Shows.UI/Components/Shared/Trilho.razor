@@ -1,0 +1,37 @@
+@* Um trilho da vitrine (a fileira do iFood): título, linha de apoio, "ver tudo" e os cards rolando de lado.
+   Trilho vazio não desenha nada — a vitrine nunca mostra uma seção sem conteúdo. *@
+@if (Eventos.Count > 0)
+{
+    <section class="um-trilho" aria-labelledby="@id">
+        <div class="um-trilho-cab">
+            <div>
+                <h2 id="@id">@Titulo</h2>
+                @if (!string.IsNullOrWhiteSpace(Sub))
+                {
+                    <p>@Sub</p>
+                }
+            </div>
+            @if (!string.IsNullOrWhiteSpace(VerTudo))
+            {
+                <a href="@VerTudo">Ver tudo</a>
+            }
+        </div>
+        <div class="um-trilho-faixa @(Largo ? "is-largo" : "")" role="list">
+            @foreach (var e in Eventos)
+            {
+                <div role="listitem"><EventoCardView Evento="e" Agora="Agora" Largo="Largo" /></div>
+            }
+        </div>
+    </section>
+}
+
+@code {
+    private readonly string id = "trilho-" + Guid.NewGuid().ToString("N")[..8];
+
+    [Parameter, EditorRequired] public string Titulo { get; set; } = string.Empty;
+    [Parameter] public string? Sub { get; set; }
+    [Parameter] public string? VerTudo { get; set; }
+    [Parameter, EditorRequired] public IReadOnlyList<EventoCard> Eventos { get; set; } = [];
+    [Parameter] public DateTime? Agora { get; set; }
+    [Parameter] public bool Largo { get; set; }
+}

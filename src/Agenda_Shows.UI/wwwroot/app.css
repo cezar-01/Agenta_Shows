@@ -1,60 +1,1298 @@
+/* ═══════════════════════════════════════════════════════════════════════════════
+   UMURA — folha global. A identidade vem do PDF "UMURA — Diretrizes Visuais"
+   (Henrich, 01/10/2026); a estrutura e as réguas vêm do MyPods (feeefeg).
+   Regra da casa: página não escreve cor, raio nem sombra literal — tudo é var(--um-*).
+   O plano completo está em PLANO_UMURA.md (seção 2: tokens e contraste).
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+/* ─── Fontes self-hosted ─────────────────────────────────────────────────────────
+   Nenhuma fonte sai de terceiro (a CSP fecha font-src em 'self'). As duas são
+   VARIÁVEIS: um arquivo por subset cobre todos os pesos. Licença OFL ao lado.
+   Outfit é a substituta provisória da Coco Gothic (paga): quando o Henrich mandar
+   os arquivos licenciados, basta um @font-face 'Coco Gothic' — ela já é a primeira
+   da pilha em --um-display. */
+@font-face {
+    font-family: 'Outfit';
+    font-style: normal;
+    font-weight: 100 900;
+    font-display: swap;
+    src: url('/fonts/outfit-latin.woff2') format('woff2');
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+    font-family: 'Outfit';
+    font-style: normal;
+    font-weight: 100 900;
+    font-display: swap;
+    src: url('/fonts/outfit-latin-ext.woff2') format('woff2');
+    unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+    font-family: 'Readex Pro';
+    font-style: normal;
+    font-weight: 160 700;
+    font-display: swap;
+    src: url('/fonts/readex-pro-latin.woff2') format('woff2');
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+    font-family: 'Readex Pro';
+    font-style: normal;
+    font-weight: 160 700;
+    font-display: swap;
+    src: url('/fonts/readex-pro-latin-ext.woff2') format('woff2');
+    unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+/* ─── Tokens ─────────────────────────────────────────────────────────────────────
+   Paleta oficial (PDF p.7): Deep Green #0B3C3F · Worker Green #6E6F5E ·
+   Premium Grey #282828 · Off White #EDECE7 · Coral Orange #FF5A3C.
+   O claro é o padrão (o PDF é claro: 40% Off White). O escuro vem por
+   prefers-color-scheme e pode ser forçado com <html data-theme="light|dark">.
+
+   Contraste conferido (WCAG, calculado em 18/10/2026):
+     Premium Grey / Off White ......... 12,5:1  texto
+     Off White / Deep Green ........... 10,3:1  texto (escuro e botão primário)
+     Premium Grey / Coral ............. 4,8:1   texto sobre o botão de acento
+     Worker Green / Off White ......... 4,3:1   REPROVA em texto normal → por isso
+       --um-ink-muted é um Worker Green mais escuro (#57584A, 6,1:1); o tom puro
+       fica em --um-worker para superfície e traço. No escuro o muted dá 4,8:1
+       sobre o card e 5,6:1 sobre o fundo. Todo semântico passa de 4,6:1.
+     Coral / Off White ................ 2,6:1   NUNCA texto: coral é fundo, ícone,
+       pino e traço ≥ 3px. */
+:root {
+    color-scheme: light;
+
+    --um-deep-green: #0B3C3F;
+    --um-worker: #6E6F5E;
+    --um-grey: #282828;
+    --um-off-white: #EDECE7;
+    --um-coral: #FF5A3C;
+
+    --um-bg: #EDECE7;
+    --um-surface: #F7F6F2;
+    --um-surface-2: #E3E1D9;
+    --um-surface-3: #FFFFFF;
+    --um-border: #CFCDC3;
+    --um-border-soft: #DEDCD3;
+    --um-border-strong: #A9A79B;
+
+    --um-ink: #282828;
+    --um-ink-soft: #3D3D3A;
+    --um-ink-muted: #57584A;
+    --um-ink-dim: #8E8F80;
+
+    --um-brand: #0B3C3F;
+    --um-brand-hover: #0F4B4F;
+    --um-brand-ink: #EDECE7;
+    --um-brand-soft: rgba(11, 60, 63, 0.08);
+
+    --um-accent: #FF5A3C;
+    --um-accent-hover: #FF6F55;
+    --um-accent-ink: #282828;
+    --um-accent-bg: rgba(255, 90, 60, 0.12);
+    --um-accent-border: rgba(255, 90, 60, 0.45);
+
+    --um-success: #17703D;
+    --um-success-bg: rgba(23, 112, 61, 0.12);
+    --um-warning: #8A6100;
+    --um-warning-bg: rgba(138, 97, 0, 0.12);
+    --um-danger: #B42A20;
+    --um-danger-bg: rgba(180, 42, 32, 0.10);
+    --um-info: #23608F;
+    --um-info-bg: rgba(35, 96, 143, 0.10);
+
+    --um-focus: #0B3C3F;
+    --um-overlay: rgba(11, 30, 32, 0.45);
+
+    /* O bloco da marca (assinatura sobre fundo sólido, PDF p.5): "principal" no claro, "neutra" no escuro —
+       sobre o fundo Deep Green do escuro, um bloco Deep Green sumiria. */
+    --um-marca-bg: #0B3C3F;
+    --um-marca-ink: #EDECE7;
+
+    /* O véu que escurece a foto atrás do texto do banner, e o papel do QR (leitor de QR falha sobre fundo
+       escuro: o QR sempre sai em papel claro, em qualquer modo). */
+    --um-veu: rgba(11, 30, 32, 0.82);
+    --um-papel-qr: #FFFFFF;
+
+    /* No claro a sombra lê: elevação = sombra suave + borda. */
+    --um-shadow-sm: 0 1px 2px rgba(40, 40, 40, 0.06), 0 1px 3px rgba(40, 40, 40, 0.08);
+    --um-shadow: 0 4px 16px rgba(40, 40, 40, 0.10);
+    --um-shadow-lg: 0 16px 40px rgba(11, 60, 63, 0.18);
+
+    --um-radius-sm: 8px;
+    --um-radius: 14px;
+    --um-radius-lg: 20px;
+    --um-radius-pill: 999px;
+
+    --um-display: 'Coco Gothic', 'Outfit', system-ui, sans-serif;
+    --um-font: 'Readex Pro', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    --um-mono: ui-monospace, 'Cascadia Code', 'Fira Code', monospace;
+
+    --um-container: 1280px;
+    --um-header-h: 64px;
+    --um-header: calc(var(--um-header-h) + env(safe-area-inset-top, 0px));
+    --um-bottomnav-h: 64px;
+    --um-bottomnav: calc(var(--um-bottomnav-h) + env(safe-area-inset-bottom, 0px));
+    --um-gutter: 1rem;
+    --um-sec-pad: clamp(1.75rem, 6vw, 3.5rem);
+    --um-tap: 44px;
+    --um-tap-lg: 52px;
+
+    /* Camadas, de baixo pra cima. Número inventado é o bug de sobreposição de amanhã. */
+    --um-z-sticky: 40;
+    --um-z-fab: 45;
+    --um-z-drawer: 49;
+    --um-z-header: 50;
+    --um-z-bottomnav: 51;
+    --um-z-sheet: 60;
+    --um-z-dropdown: 300;
+    --um-z-float: 940;
+    --um-z-consent: 1000;
+    --um-z-critical: 1100;
+}
+
+/* O escuro: Deep Green vira o fundo (PDF p.8: 35% Deep Green no modo escuro).
+   Mesmos nomes, outros valores — página nenhuma sabe em que modo está. */
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+        color-scheme: dark;
+        --um-bg: #0B3C3F;
+        --um-surface: #0F474A;
+        --um-surface-2: #155558;
+        --um-surface-3: #1A6064;
+        --um-border: #23686B;
+        --um-border-soft: #18585B;
+        --um-border-strong: #3A8285;
+        --um-ink: #EDECE7;
+        --um-ink-soft: #D6D5CF;
+        --um-ink-muted: #A9B3A6;
+        --um-ink-dim: #7E9592;
+        --um-brand: #EDECE7;
+        --um-brand-hover: #FFFFFF;
+        --um-brand-ink: #0B3C3F;
+        --um-brand-soft: rgba(237, 236, 231, 0.08);
+        --um-success: #6FD597;
+        --um-success-bg: rgba(111, 213, 151, 0.14);
+        --um-warning: #F2C66B;
+        --um-warning-bg: rgba(242, 198, 107, 0.14);
+        --um-danger: #FF9C8C;
+        --um-danger-bg: rgba(255, 156, 140, 0.14);
+        --um-info: #8FCBF2;
+        --um-info-bg: rgba(143, 203, 242, 0.14);
+        --um-focus: #EDECE7;
+        --um-overlay: rgba(2, 18, 19, 0.6);
+        --um-marca-bg: #282828;
+        --um-marca-ink: #EDECE7;
+        --um-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+        --um-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+        --um-shadow-lg: 0 18px 44px rgba(0, 0, 0, 0.5);
+    }
+}
+:root[data-theme="dark"] {
+    color-scheme: dark;
+    --um-bg: #0B3C3F;
+    --um-surface: #0F474A;
+    --um-surface-2: #155558;
+    --um-surface-3: #1A6064;
+    --um-border: #23686B;
+    --um-border-soft: #18585B;
+    --um-border-strong: #3A8285;
+    --um-ink: #EDECE7;
+    --um-ink-soft: #D6D5CF;
+    --um-ink-muted: #A9B3A6;
+    --um-ink-dim: #7E9592;
+    --um-brand: #EDECE7;
+    --um-brand-hover: #FFFFFF;
+    --um-brand-ink: #0B3C3F;
+    --um-brand-soft: rgba(237, 236, 231, 0.08);
+    --um-success: #6FD597;
+    --um-success-bg: rgba(111, 213, 151, 0.14);
+    --um-warning: #F2C66B;
+    --um-warning-bg: rgba(242, 198, 107, 0.14);
+    --um-danger: #FF9C8C;
+    --um-danger-bg: rgba(255, 156, 140, 0.14);
+    --um-info: #8FCBF2;
+    --um-info-bg: rgba(143, 203, 242, 0.14);
+    --um-focus: #EDECE7;
+    --um-overlay: rgba(2, 18, 19, 0.6);
+    --um-marca-bg: #282828;
+    --um-marca-ink: #EDECE7;
+    --um-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --um-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+    --um-shadow-lg: 0 18px 44px rgba(0, 0, 0, 0.5);
+}
+
+/* ═══ Escada de breakpoints (a mesma do MyPods — não crie outra) ═══
+     1024px  a navegação do topo some, a barra de baixo assume
+      980px  hero vira 1 coluna
+      900px  grids de várias colunas viram 1
+      640px  FAIXA PRINCIPAL do celular: inputs a 16px, tabelas viram cards
+      480px  telas estreitas
+   Media query NÃO soma especificidade: regra dentro de @media perde para um
+   seletor mais específico fora dele. */
+
+/* ─── Base ───────────────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+
+img, svg, video { max-width: 100%; height: auto; }
+
 html, body {
-    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    margin: 0;
+    background: var(--um-bg);
+    color: var(--um-ink);
+    font-family: var(--um-font);
+    font-size: 16px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
 }
 
-a, .btn-link {
-    color: #006bb7;
+/* smooth quebra as medições do ScrollTrigger (skill mypods-motion). */
+html { scroll-behavior: auto; scroll-padding-top: calc(var(--um-header) + 8px); }
+
+@supports (height: 100dvh) {
+    body, .um-shell { min-height: 100dvh; }
 }
 
-.btn-primary {
-    color: #fff;
-    background-color: #1b6ec2;
-    border-color: #1861ac;
+:where(a, button, [role="button"], input, select, textarea, summary, [tabindex]:not([tabindex="-1"])):focus-visible {
+    outline: 2px solid var(--um-focus);
+    outline-offset: 2px;
+}
+:where([tabindex="-1"]):focus-visible { outline: none; }
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
 }
 
-.btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
-  box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;
+::selection { background: var(--um-accent-bg); color: var(--um-ink); }
+
+a {
+    color: var(--um-brand);
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+    transition: color .15s ease, opacity .15s ease;
+}
+a:hover { color: var(--um-brand-hover); }
+
+h1, h2, h3, h4, h5, h6 {
+    font-family: var(--um-display);
+    color: var(--um-brand);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    line-height: 1.12;
+    margin: 0 0 0.5em;
+}
+h1 { font-size: clamp(2rem, 4vw, 2.75rem); line-height: 1.05; }
+h2 { font-size: clamp(1.5rem, 3vw, 2rem); }
+h3 { font-size: 1.25rem; }
+h1:focus { outline: none; }
+
+p { margin: 0 0 1em; }
+
+.um-tnum { font-variant-numeric: tabular-nums; }
+.um-mono { font-family: var(--um-mono); font-size: 0.9em; }
+.um-soft { color: var(--um-ink-soft); }
+.um-muted { color: var(--um-ink-muted); }
+
+/* O texto que só o leitor de tela lê. Dentro de rolador, o rolador precisa ser
+   posicionado (gotcha do MyPods: senão o rótulo alarga a página). */
+.um-visually-hidden {
+    position: absolute !important;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0, 0, 0, 0);
+    white-space: nowrap; border: 0;
 }
 
-.content {
-    padding-top: 1.1rem;
+.um-skip {
+    position: absolute;
+    left: 0.75rem;
+    top: -100px;
+    z-index: var(--um-z-critical);
+    padding: 0.6rem 1rem;
+    border-radius: var(--um-radius-pill);
+    background: var(--um-brand);
+    color: var(--um-brand-ink);
+    font-weight: 600;
+    text-decoration: none;
+}
+.um-skip:focus { top: calc(env(safe-area-inset-top, 0px) + 0.5rem); color: var(--um-brand-ink); }
+
+/* ─── Tipografia de marca ────────────────────────────────────────────────────── */
+/* Rótulo que abre toda seção. Worker Green escuro (muted), caixa alta espaçada —
+   o "CWB — PR" e os rótulos do PDF. Coral não: seria texto pequeno sobre claro. */
+.um-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-family: var(--um-font);
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--um-ink-muted);
+}
+/* O traço coral do PDF (capa, p.1): é traço, não texto — por isso pode ser coral. */
+.um-eyebrow::before {
+    content: "";
+    width: 1.5rem;
+    height: 3px;
+    border-radius: 2px;
+    background: var(--um-accent);
+}
+.um-eyebrow.is-plain::before { display: none; }
+
+.um-display {
+    font-family: var(--um-display);
+    font-size: clamp(2.4rem, 7vw, 4.5rem);
+    line-height: 0.98;
+    letter-spacing: 0.02em;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--um-brand);
+    margin: 0;
 }
 
-h1:focus {
+.um-lead {
+    font-size: clamp(1.05rem, 2.2vw, 1.25rem);
+    color: var(--um-ink-soft);
+    max-width: 38ch;
+}
+
+.um-sec-head { margin-bottom: clamp(1rem, 3vw, 1.75rem); }
+.um-sec-title { margin: 0.4rem 0 0; }
+.um-sec-sub { margin: 0.35rem 0 0; color: var(--um-ink-soft); max-width: 60ch; }
+
+/* ─── Casca: header, conteúdo, barra de baixo ───────────────────────────────── */
+.um-shell { min-height: 100vh; display: flex; flex-direction: column; }
+
+.um-header {
+    position: fixed;
+    inset: 0 0 auto 0;
+    z-index: var(--um-z-header);
+    height: var(--um-header);
+    padding-top: env(safe-area-inset-top, 0px);
+    background: color-mix(in srgb, var(--um-bg) 88%, transparent);
+    -webkit-backdrop-filter: saturate(1.2) blur(12px);
+    backdrop-filter: saturate(1.2) blur(12px);
+    border-bottom: 1px solid var(--um-border-soft);
+    transition: transform .25s cubic-bezier(0.32, 0.72, 0, 1);
+}
+/* nav-retract.js marca o <html> ao descer: o cabeçalho sai de cena. */
+html.um-retraido .um-header { transform: translateY(-101%); }
+
+.um-header-inner {
+    height: var(--um-header-h);
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.um-logo {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: var(--um-tap);
+    color: var(--um-brand);
+    text-decoration: none;
+    font-family: var(--um-display);
+    font-weight: 700;
+    font-size: 1.35rem;
+    letter-spacing: 0.08em;
+}
+.um-logo:hover { color: var(--um-brand); }
+.um-logo-mark { width: 30px; height: 30px; flex: none; }
+
+.um-nav {
+    display: none;
+    margin: 0 0 0 auto;
+    padding: 0;
+    list-style: none;
+    gap: 0.25rem;
+}
+.um-nav a {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--um-tap);
+    padding: 0 0.9rem;
+    border-radius: var(--um-radius-pill);
+    color: var(--um-ink-soft);
+    text-decoration: none;
+    font-weight: 500;
+}
+.um-nav a:hover { color: var(--um-ink); background: var(--um-brand-soft); }
+.um-nav a.active { color: var(--um-brand); background: var(--um-brand-soft); font-weight: 600; }
+
+.um-header-actions { display: flex; align-items: center; gap: 0.25rem; margin-left: auto; }
+
+.um-main {
+    flex: 1;
+    padding-top: var(--um-header);
+    padding-bottom: var(--um-bottomnav);
+}
+
+.um-bottomnav {
+    position: fixed;
+    inset: auto 0 0 0;
+    z-index: var(--um-z-bottomnav);
+    height: var(--um-bottomnav);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    background: var(--um-surface);
+    border-top: 1px solid var(--um-border-soft);
+    box-shadow: var(--um-shadow-sm);
+}
+.um-bottomnav a {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.15rem;
+    min-height: var(--um-tap);
+    color: var(--um-ink-muted);
+    text-decoration: none;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+.um-bottomnav a svg { width: 22px; height: 22px; }
+.um-bottomnav a.active { color: var(--um-brand); }
+/* O ativo ganha o traço coral em cima — a mesma assinatura do eyebrow. */
+.um-bottomnav a.active::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    width: 28px;
+    height: 3px;
+    border-radius: 0 0 3px 3px;
+    background: var(--um-accent);
+}
+.um-bottomnav a { position: relative; }
+
+@media (min-width: 1025px) {
+    :root { --um-header-h: 72px; --um-gutter: 1.5rem; }
+    .um-nav { display: flex; }
+    .um-header-actions { margin-left: 0.5rem; }
+    .um-bottomnav { display: none; }
+    .um-main { padding-bottom: 0; }
+}
+
+.um-footer {
+    border-top: 1px solid var(--um-border-soft);
+    padding-block: 2rem calc(2rem + var(--um-bottomnav));
+    color: var(--um-ink-muted);
+    font-size: 0.875rem;
+}
+@media (min-width: 1025px) { .um-footer { padding-block: 2.5rem; } }
+.um-footer-inner { display: flex; flex-wrap: wrap; gap: 0.75rem 1.5rem; align-items: center; justify-content: space-between; }
+.um-footer a { color: var(--um-ink-soft); }
+.um-footer-links { display: flex; flex-wrap: wrap; gap: 0.25rem 1rem; margin: 0; padding: 0; list-style: none; }
+.um-footer-links a { display: inline-flex; align-items: center; min-height: var(--um-tap); }
+
+/* ─── Layout ─────────────────────────────────────────────────────────────────── */
+.um-container,
+.um-header-inner {
+    width: 100%;
+    max-width: var(--um-container);
+    margin-inline: auto;
+    padding-left: max(var(--um-gutter), env(safe-area-inset-left, 0px));
+    padding-right: max(var(--um-gutter), env(safe-area-inset-right, 0px));
+}
+
+/* padding-block, NUNCA o atalho padding: num <div class="um-container um-section">
+   o atalho apagaria a sarjeta lateral do container (bug real do MyPods). */
+.um-section { padding-block: var(--um-sec-pad); }
+.um-section-tight { padding-block: calc(var(--um-sec-pad) * 0.6); }
+
+.um-grid {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
+}
+.um-stack { display: flex; flex-direction: column; gap: 0.75rem; }
+.um-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+
+/* ─── Botão — sempre pílula ─────────────────────────────────────────────────── */
+.um-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-height: var(--um-tap);
+    padding: 0.7rem 1.35rem;
+    border: 1px solid transparent;
+    border-radius: var(--um-radius-pill);
+    font-family: var(--um-font);
+    font-size: 0.95rem;
+    font-weight: 600;
+    line-height: 1;
+    text-decoration: none;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background-color .15s ease, border-color .15s ease, color .15s ease, transform .1s ease-out, box-shadow .15s ease;
+}
+.um-btn:active:not(:disabled) { transform: scale(0.97); }
+.um-btn-wrap { white-space: normal; text-align: center; line-height: 1.25; }
+.um-btn-lg { min-height: var(--um-tap-lg); padding-inline: 1.75rem; font-size: 1rem; }
+.um-btn-block { width: 100%; }
+
+/* Primário: Deep Green / Off White no claro, invertido no escuro (os tokens trocam). */
+.um-btn-primary { background: var(--um-brand); color: var(--um-brand-ink); }
+.um-btn-primary:hover:not(:disabled) { background: var(--um-brand-hover); color: var(--um-brand-ink); }
+
+/* Acento: coral com tinta Premium Grey (4,8:1). UM por viewport — é o "agora". */
+.um-btn-accent { background: var(--um-accent); color: var(--um-accent-ink); }
+.um-btn-accent:hover:not(:disabled) { background: var(--um-accent-hover); color: var(--um-accent-ink); }
+/* Sobre fundo colorido o anel de foco da casa some: anel duplo. */
+.um-btn-primary:focus-visible,
+.um-btn-accent:focus-visible {
     outline: none;
+    box-shadow: 0 0 0 2px var(--um-bg), 0 0 0 4px var(--um-focus);
 }
 
-.valid.modified:not([type=checkbox]) {
-    outline: 1px solid #26b050;
+.um-btn-outline { background: transparent; color: var(--um-ink); border-color: var(--um-border); }
+.um-btn-outline:hover:not(:disabled) { border-color: var(--um-border-strong); background: var(--um-surface); color: var(--um-ink); }
+
+.um-btn-ghost { background: transparent; color: var(--um-ink-soft); padding-inline: 0.9rem; }
+.um-btn-ghost:hover:not(:disabled) { color: var(--um-ink); background: var(--um-brand-soft); }
+
+.um-btn-danger { background: transparent; color: var(--um-danger); border-color: currentColor; }
+.um-btn-danger:hover:not(:disabled) { background: var(--um-danger-bg); }
+
+.um-btn:disabled,
+.um-btn[aria-disabled="true"] {
+    opacity: 0.45;
+    cursor: not-allowed;
+    box-shadow: none;
+    transform: none;
+}
+.um-btn[aria-disabled="true"] { pointer-events: none; }
+
+/* Botão só de ícone: 44×44, rótulo no aria-label. */
+.um-icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--um-tap);
+    height: var(--um-tap);
+    border: 1px solid transparent;
+    border-radius: var(--um-radius-pill);
+    background: transparent;
+    color: var(--um-ink-soft);
+    cursor: pointer;
+    transition: background-color .15s ease, color .15s ease;
+}
+.um-icon-btn:hover { background: var(--um-brand-soft); color: var(--um-ink); }
+.um-icon-btn svg { width: 22px; height: 22px; }
+.um-icon-btn[aria-pressed="true"] { color: var(--um-accent); }
+
+/* ─── Card ───────────────────────────────────────────────────────────────────── */
+.um-card {
+    background: var(--um-surface);
+    border: 1px solid var(--um-border-soft);
+    border-radius: var(--um-radius);
+    padding: 1.25rem;
+    box-shadow: var(--um-shadow-sm);
+}
+.um-card-hover { transition: border-color .15s ease, transform .15s ease-out, box-shadow .15s ease; }
+.um-card-hover:hover { border-color: var(--um-border); transform: translateY(-2px); box-shadow: var(--um-shadow); }
+
+/* ─── Chip (filtro) e badge (estado) ────────────────────────────────────────── */
+.um-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    min-height: var(--um-tap);
+    padding: 0 1rem;
+    border: 1px solid var(--um-border);
+    border-radius: var(--um-radius-pill);
+    background: var(--um-surface);
+    color: var(--um-ink-soft);
+    font-family: var(--um-font);
+    font-size: 0.9rem;
+    font-weight: 500;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background-color .15s ease, border-color .15s ease, color .15s ease;
+}
+.um-chip:hover { border-color: var(--um-border-strong); color: var(--um-ink); }
+/* Selecionado = Deep Green cheio. O "selecionado" é estado persistente, não acento. */
+.um-chip[aria-pressed="true"],
+.um-chip.is-selected { background: var(--um-brand); border-color: var(--um-brand); color: var(--um-brand-ink); }
+.um-chip-row {
+    display: flex;
+    gap: 0.5rem;
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding-block: 0.25rem;
+    position: relative;
+}
+.um-chip-row::-webkit-scrollbar { display: none; }
+
+.um-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.3rem 0.65rem;
+    border-radius: var(--um-radius-pill);
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    line-height: 1;
+    white-space: nowrap;
+    background: var(--um-surface-2);
+    color: var(--um-ink-soft);
+}
+/* Semânticos sempre em par cor + fundo e com texto/ícone junto (nunca só cor). */
+.um-badge-success { background: var(--um-success-bg); color: var(--um-success); }
+.um-badge-warning { background: var(--um-warning-bg); color: var(--um-warning); }
+.um-badge-danger  { background: var(--um-danger-bg);  color: var(--um-danger); }
+.um-badge-info    { background: var(--um-info-bg);    color: var(--um-info); }
+/* "Hoje" / "Agora": fundo coral claro com tinta Premium Grey — coral é o fundo, não o texto. */
+.um-badge-now     { background: var(--um-accent-bg);  color: var(--um-ink); box-shadow: inset 0 0 0 1px var(--um-accent-border); }
+
+/* ─── Campo ──────────────────────────────────────────────────────────────────── */
+.um-field { display: flex; flex-direction: column; gap: 0.4rem; }
+.um-label { font-size: 0.875rem; font-weight: 600; color: var(--um-ink-soft); }
+.um-hint { display: block; font-size: 0.8125rem; color: var(--um-ink-muted); }
+.um-input,
+.um-select,
+.um-textarea {
+    width: 100%;
+    min-height: 48px;
+    padding: 0.7rem 0.9rem;
+    border: 1px solid var(--um-border);
+    border-radius: var(--um-radius-sm);
+    background: var(--um-surface-3);
+    color: var(--um-ink);
+    font-family: var(--um-font);
+    font-size: 1rem;
+    transition: border-color .15s ease, box-shadow .15s ease;
+}
+.um-textarea { min-height: 120px; resize: vertical; line-height: 1.5; }
+.um-input::placeholder, .um-textarea::placeholder { color: var(--um-ink-dim); }
+.um-input:hover, .um-select:hover, .um-textarea:hover { border-color: var(--um-border-strong); }
+.um-input:focus-visible, .um-select:focus-visible, .um-textarea:focus-visible {
+    outline: 2px solid var(--um-focus);
+    outline-offset: 1px;
+    border-color: var(--um-focus);
+}
+.um-field.has-error .um-input,
+.um-field.has-error .um-select,
+.um-field.has-error .um-textarea { border-color: var(--um-danger); }
+.um-error { display: flex; gap: 0.35rem; align-items: flex-start; font-size: 0.8125rem; font-weight: 500; color: var(--um-danger); }
+/* Abaixo de 16px o iOS dá zoom ao focar: o campo nunca desce disso. */
+@media (max-width: 640px) { .um-input, .um-select, .um-textarea { font-size: 16px; } }
+
+/* ─── Alerta, vazio, carregando, toast ──────────────────────────────────────── */
+.um-alert {
+    display: flex;
+    gap: 0.75rem;
+    padding: 0.9rem 1rem;
+    border-radius: var(--um-radius);
+    border-left: 3px solid currentColor;
+    background: var(--um-surface-2);
+    color: var(--um-ink);
+}
+.um-alert-success { background: var(--um-success-bg); border-color: var(--um-success); }
+.um-alert-warning { background: var(--um-warning-bg); border-color: var(--um-warning); }
+.um-alert-danger  { background: var(--um-danger-bg);  border-color: var(--um-danger); }
+.um-alert-info    { background: var(--um-info-bg);    border-color: var(--um-info); }
+.um-alert b { display: block; margin-bottom: 0.15rem; }
+
+.um-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 260px;
+    justify-content: center;
+    padding: 2rem 1rem;
+    text-align: center;
+    color: var(--um-ink-soft);
+}
+.um-empty h3 { margin: 0.25rem 0 0; }
+
+.um-skeleton {
+    position: relative;
+    overflow: hidden;
+    border-radius: var(--um-radius-sm);
+    background: var(--um-surface-2);
+    min-height: 1em;
+}
+.um-skeleton::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--um-surface-3) 60%, transparent), transparent);
+    animation: um-shimmer 1.6s linear infinite;
+}
+@keyframes um-shimmer { to { transform: translateX(100%); } }
+
+.um-toast {
+    position: fixed;
+    left: 50%;
+    bottom: calc(var(--um-bottomnav) + 1rem);
+    z-index: var(--um-z-float);
+    transform: translateX(-50%);
+    max-width: min(92vw, 420px);
+    padding: 0.8rem 1.1rem;
+    border-radius: var(--um-radius);
+    background: var(--um-grey);
+    color: var(--um-off-white);
+    box-shadow: var(--um-shadow-lg);
+    font-size: 0.9375rem;
+}
+.um-toast[hidden] { display: none; }
+
+/* ─── KPI (painel do produtor) ───────────────────────────────────────────────── */
+.um-kpi {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    padding: 1.1rem 1.25rem;
+    border: 1px solid var(--um-border-soft);
+    border-radius: var(--um-radius);
+    background: var(--um-surface);
+}
+.um-kpi-label { font-size: 0.75rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--um-ink-muted); }
+.um-kpi-value { font-family: var(--um-display); font-size: clamp(1.6rem, 4vw, 2rem); font-weight: 700; line-height: 1; color: var(--um-brand); font-variant-numeric: tabular-nums; }
+
+/* ─── Card de evento (estrutura do kit Urbura, identidade UMURA) ─────────────── */
+.um-evento {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid var(--um-border-soft);
+    border-radius: var(--um-radius);
+    background: var(--um-surface);
+    color: inherit;
+    text-decoration: none;
+    transition: border-color .15s ease, transform .15s ease-out, box-shadow .15s ease;
+}
+.um-evento:hover { border-color: var(--um-border); transform: translateY(-2px); box-shadow: var(--um-shadow); color: inherit; }
+.um-evento-midia { position: relative; aspect-ratio: 16 / 9; background: var(--um-surface-2); overflow: hidden; }
+.um-evento-midia img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.um-evento-midia .um-badge { position: absolute; left: 0.75rem; top: 0.75rem; background: var(--um-surface-3); color: var(--um-ink); }
+.um-evento-corpo { display: flex; flex-direction: column; gap: 0.3rem; padding: 0.9rem 1rem 1rem; }
+.um-evento-quando { font-size: 0.8125rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--um-ink-muted); font-variant-numeric: tabular-nums; }
+.um-evento-titulo { margin: 0; font-size: 1.15rem; line-height: 1.2; color: var(--um-brand); }
+.um-evento-local { margin: 0; font-size: 0.9rem; color: var(--um-ink-soft); }
+.um-evento-pe { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-top: 0.4rem; }
+
+/* ─── Hero simples (usado na casca até a home-mapa da F2) ───────────────────── */
+.um-hero { padding-block: clamp(2.5rem, 9vw, 6rem) clamp(2rem, 6vw, 4rem); }
+.um-hero-inner { display: grid; gap: 1.5rem; }
+.um-hero-acoes { display: flex; flex-wrap: wrap; gap: 0.75rem; }
+@media (min-width: 981px) {
+    .um-hero-inner { grid-template-columns: 1.1fr 0.9fr; align-items: center; gap: 3rem; }
+}
+.um-hero-marca {
+    aspect-ratio: 1;
+    max-width: 420px;
+    width: 100%;
+    justify-self: center;
+    display: grid;
+    place-items: center;
+    border-radius: var(--um-radius-lg);
+    background: var(--um-marca-bg);
+    color: var(--um-marca-ink);
+}
+.um-hero-marca svg { width: 58%; height: auto; }
+
+/* ─── Estado inicial do motion (sem FOUC) ───────────────────────────────────────
+   Só esconde com no-preference: sem JS ou com reduce, o conteúdo nasce visível. */
+@media (prefers-reduced-motion: no-preference) and (scripting: enabled) {
+    [data-um-motion="reveal"]:not([data-um-bound]),
+    [data-um-motion="card-in"]:not([data-um-bound]),
+    [data-um-motion="reveal-group"]:not([data-um-bound]) > *,
+    [data-um-motion="hero"]:not([data-um-bound]) [data-um-hero-item] { opacity: 0; }
 }
 
-.invalid {
-    outline: 1px solid #e50000;
+/* ─── Erros do Blazor ────────────────────────────────────────────────────────── */
+#blazor-error-ui {
+    display: none;
+    position: fixed;
+    inset: auto 0 0 0;
+    z-index: var(--um-z-critical);
+    padding: 0.75rem 1.25rem calc(0.75rem + env(safe-area-inset-bottom, 0px));
+    background: var(--um-grey);
+    color: var(--um-off-white);
+    box-shadow: var(--um-shadow-lg);
 }
-
-.validation-message {
-    color: #e50000;
-}
+#blazor-error-ui a { color: var(--um-off-white); }
+#blazor-error-ui .dismiss { cursor: pointer; position: absolute; right: 1rem; top: 0.6rem; }
 
 .blazor-error-boundary {
-    background: url(data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTYiIGhlaWdodD0iNDkiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIG92ZXJmbG93PSJoaWRkZW4iPjxkZWZzPjxjbGlwUGF0aCBpZD0iY2xpcDAiPjxyZWN0IHg9IjIzNSIgeT0iNTEiIHdpZHRoPSI1NiIgaGVpZ2h0PSI0OSIvPjwvY2xpcFBhdGg+PC9kZWZzPjxnIGNsaXAtcGF0aD0idXJsKCNjbGlwMCkiIHRyYW5zZm9ybT0idHJhbnNsYXRlKC0yMzUgLTUxKSI+PHBhdGggZD0iTTI2My41MDYgNTFDMjY0LjcxNyA1MSAyNjUuODEzIDUxLjQ4MzcgMjY2LjYwNiA1Mi4yNjU4TDI2Ny4wNTIgNTIuNzk4NyAyNjcuNTM5IDUzLjYyODMgMjkwLjE4NSA5Mi4xODMxIDI5MC41NDUgOTIuNzk1IDI5MC42NTYgOTIuOTk2QzI5MC44NzcgOTMuNTEzIDI5MSA5NC4wODE1IDI5MSA5NC42NzgyIDI5MSA5Ny4wNjUxIDI4OS4wMzggOTkgMjg2LjYxNyA5OUwyNDAuMzgzIDk5QzIzNy45NjMgOTkgMjM2IDk3LjA2NTEgMjM2IDk0LjY3ODIgMjM2IDk0LjM3OTkgMjM2LjAzMSA5NC4wODg2IDIzNi4wODkgOTMuODA3MkwyMzYuMzM4IDkzLjAxNjIgMjM2Ljg1OCA5Mi4xMzE0IDI1OS40NzMgNTMuNjI5NCAyNTkuOTYxIDUyLjc5ODUgMjYwLjQwNyA1Mi4yNjU4QzI2MS4yIDUxLjQ4MzcgMjYyLjI5NiA1MSAyNjMuNTA2IDUxWk0yNjMuNTg2IDY2LjAxODNDMjYwLjczNyA2Ni4wMTgzIDI1OS4zMTMgNjcuMTI0NSAyNTkuMzEzIDY5LjMzNyAyNTkuMzEzIDY5LjYxMDIgMjU5LjMzMiA2OS44NjA4IDI1OS4zNzEgNzAuMDg4N0wyNjEuNzk1IDg0LjAxNjEgMjY1LjM4IDg0LjAxNjEgMjY3LjgyMSA2OS43NDc1QzI2Ny44NiA2OS43MzA5IDI2Ny44NzkgNjkuNTg3NyAyNjcuODc5IDY5LjMxNzkgMjY3Ljg3OSA2Ny4xMTgyIDI2Ni40NDggNjYuMDE4MyAyNjMuNTg2IDY2LjAxODNaTTI2My41NzYgODYuMDU0N0MyNjEuMDQ5IDg2LjA1NDcgMjU5Ljc4NiA4Ny4zMDA1IDI1OS43ODYgODkuNzkyMSAyNTkuNzg2IDkyLjI4MzcgMjYxLjA0OSA5My41Mjk1IDI2My41NzYgOTMuNTI5NSAyNjYuMTE2IDkzLjUyOTUgMjY3LjM4NyA5Mi4yODM3IDI2Ny4zODcgODkuNzkyMSAyNjcuMzg3IDg3LjMwMDUgMjY2LjExNiA4Ni4wNTQ3IDI2My41NzYgODYuMDU0N1oiIGZpbGw9IiNGRkU1MDAiIGZpbGwtcnVsZT0iZXZlbm9kZCIvPjwvZz48L3N2Zz4=) no-repeat 1rem/1.8rem, #b32121;
-    padding: 1rem 1rem 1rem 3.7rem;
-    color: white;
+    padding: 1rem 1.25rem;
+    border-radius: var(--um-radius);
+    background: var(--um-danger-bg);
+    color: var(--um-danger);
+    border-left: 3px solid var(--um-danger);
+}
+.blazor-error-boundary::after { content: "Algo deu errado nesta parte da página."; }
+
+.validation-message { color: var(--um-danger); font-size: 0.8125rem; }
+
+/* ─── Barra de progresso da navegação (nav-progress.js) ─────────────────────── */
+#um-progress {
+    position: fixed;
+    inset: 0 0 auto 0;
+    z-index: var(--um-z-critical);
+    height: 3px;
+    background: var(--um-accent);
+    transform: scaleX(0);
+    transform-origin: 0 50%;
+    opacity: 0;
+    pointer-events: none;
+}
+#um-progress.um-progress--active { opacity: 1; transform: scaleX(0.7); transition: transform 8s cubic-bezier(0.1, 0.6, 0.2, 1), opacity .15s ease; }
+#um-progress.um-progress--done { opacity: 0; transform: scaleX(1); transition: transform .2s ease-out, opacity .3s ease .15s; }
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   Vitrine "estilo iFood": trilhos horizontais, bolinhas de nicho, card de evento,
+   selo de situação. Mobile primeiro: o trilho rola com o dedo e encaixa (scroll-snap).
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+/* Busca do topo */
+.um-busca {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 52px;
+    padding: 0 0.5rem 0 1rem;
+    border: 1px solid var(--um-border);
+    border-radius: var(--um-radius-pill);
+    background: var(--um-surface-3);
+    box-shadow: var(--um-shadow-sm);
+}
+.um-busca svg { width: 20px; height: 20px; color: var(--um-ink-muted); flex: none; }
+.um-busca input {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    background: transparent;
+    color: var(--um-ink);
+    font: 400 1rem var(--um-font);
+    min-height: var(--um-tap);
+}
+.um-busca input:focus-visible { outline: none; }
+.um-busca:focus-within { outline: 2px solid var(--um-focus); outline-offset: 2px; }
+
+/* Trilho: título + rolagem horizontal */
+.um-trilho { padding-block: 1.25rem 0.25rem; }
+.um-trilho-cab { display: flex; align-items: flex-end; justify-content: space-between; gap: 1rem; margin-bottom: 0.75rem; }
+.um-trilho-cab h2 { margin: 0; font-size: clamp(1.2rem, 3.6vw, 1.5rem); }
+.um-trilho-cab p { margin: 0.15rem 0 0; color: var(--um-ink-soft); font-size: 0.9375rem; }
+.um-trilho-cab a { white-space: nowrap; font-weight: 600; font-size: 0.9375rem; min-height: var(--um-tap); display: inline-flex; align-items: center; }
+.um-trilho-faixa {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: min(78%, 300px);
+    gap: 0.875rem;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x mandatory;
+    scroll-padding-inline: var(--um-gutter);
+    padding-inline: var(--um-gutter);
+    margin-inline: calc(var(--um-gutter) * -1);
+    padding-bottom: 0.5rem;
+    scrollbar-width: none;
+    position: relative;
+}
+.um-trilho-faixa::-webkit-scrollbar { display: none; }
+.um-trilho-faixa > * { scroll-snap-align: start; }
+.um-trilho-faixa.is-largo { grid-auto-columns: min(88%, 420px); }
+@media (min-width: 1025px) {
+    .um-trilho-faixa { grid-auto-columns: 280px; }
+    .um-trilho-faixa.is-largo { grid-auto-columns: 400px; }
 }
 
-    .blazor-error-boundary::after {
-        content: "An error has occurred."
-    }
+/* Nicho: a bolinha com foto (a categoria do iFood) */
+.um-nichos {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 84px;
+    gap: 0.5rem;
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+    padding: 0.25rem var(--um-gutter) 0.5rem;
+    margin-inline: calc(var(--um-gutter) * -1);
+    scrollbar-width: none;
+    position: relative;
+}
+.um-nichos::-webkit-scrollbar { display: none; }
+.um-nicho {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.4rem;
+    scroll-snap-align: start;
+    color: var(--um-ink);
+    text-decoration: none;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    text-align: center;
+    line-height: 1.2;
+}
+.um-nicho img {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    object-fit: cover;
+    background: var(--um-surface-2);
+    box-shadow: 0 0 0 2px var(--um-bg), 0 0 0 4px var(--um-border-soft);
+    transition: box-shadow .15s ease, transform .15s ease-out;
+}
+.um-nicho:hover { color: var(--um-brand); }
+.um-nicho:hover img, .um-nicho.is-ativo img { box-shadow: 0 0 0 2px var(--um-bg), 0 0 0 4px var(--um-accent); }
+.um-nicho:active img { transform: scale(0.96); }
 
-.darker-border-checkbox.form-check-input {
-    border-color: #929292;
+/* Card do evento */
+.um-ev {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+    border: 1px solid var(--um-border-soft);
+    border-radius: var(--um-radius);
+    background: var(--um-surface);
+    color: inherit;
+    text-decoration: none;
+    box-shadow: var(--um-shadow-sm);
+    transition: border-color .15s ease, transform .15s ease-out, box-shadow .15s ease;
+}
+.um-ev:hover { border-color: var(--um-border); transform: translateY(-2px); box-shadow: var(--um-shadow); color: inherit; }
+.um-ev:focus-visible { outline: 2px solid var(--um-focus); outline-offset: 2px; }
+.um-ev-foto { position: relative; aspect-ratio: 16 / 9; background: var(--um-surface-2); overflow: hidden; }
+.um-ev-foto img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.um-ev-foto .um-selo { position: absolute; left: 0.6rem; top: 0.6rem; }
+.um-ev-preco {
+    position: absolute;
+    right: 0.6rem;
+    bottom: 0.6rem;
+    padding: 0.3rem 0.6rem;
+    border-radius: var(--um-radius-pill);
+    background: var(--um-surface-3);
+    color: var(--um-ink);
+    font-size: 0.8125rem;
+    font-weight: 700;
+    box-shadow: var(--um-shadow-sm);
+}
+.um-ev-corpo { display: flex; flex-direction: column; gap: 0.2rem; padding: 0.75rem 0.9rem 0.9rem; flex: 1; }
+.um-ev-nicho { font-size: 0.75rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--um-ink-muted); }
+.um-ev-titulo { margin: 0; font-family: var(--um-display); font-size: 1.05rem; line-height: 1.2; color: var(--um-brand); }
+.um-ev-local { margin: 0; font-size: 0.875rem; color: var(--um-ink-soft); }
+.um-ev-quando { margin: auto 0 0; padding-top: 0.35rem; font-size: 0.875rem; font-weight: 600; color: var(--um-ink); font-variant-numeric: tabular-nums; }
+.um-ev.is-largo .um-ev-titulo { font-size: 1.25rem; }
+.um-ev.is-esgotado .um-ev-foto img { filter: grayscale(0.6); }
+
+/* Selo de situação: AO VIVO pulsa (é estado real — skill de motion), o resto é etiqueta */
+.um-selo {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.32rem 0.6rem;
+    border-radius: var(--um-radius-pill);
+    background: var(--um-surface-3);
+    color: var(--um-ink);
+    font-size: 0.75rem;
+    font-weight: 700;
+    line-height: 1;
+    white-space: nowrap;
+    box-shadow: var(--um-shadow-sm);
+}
+.um-selo-aovivo { background: var(--um-accent); color: var(--um-accent-ink); }
+.um-selo-aovivo::before {
+    content: "";
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--um-accent-ink);
+}
+@media (prefers-reduced-motion: no-preference) {
+    .um-selo-aovivo::before { animation: um-pulso 2s ease-in-out infinite; }
+}
+@keyframes um-pulso { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+.um-selo-hoje { background: var(--um-accent-bg); box-shadow: inset 0 0 0 1px var(--um-accent-border); }
+.um-selo-encerrado, .um-selo-cancelado { background: var(--um-surface-2); color: var(--um-ink-muted); }
+
+/* Faixa de destaque (o banner grande) */
+.um-banner {
+    position: relative;
+    display: grid;
+    align-content: end;
+    min-height: 240px;
+    height: 100%;
+    padding: 1.25rem;
+    overflow: hidden;
+    border-radius: var(--um-radius-lg);
+    background: var(--um-marca-bg);
+    color: var(--um-marca-ink);
+    text-decoration: none;
+    isolation: isolate;
+}
+.um-banner img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 68%; z-index: -2; }
+/* Véu escuro sobre a foto: o texto Off White precisa de contraste em qualquer foto. */
+.um-banner::after { content: ""; position: absolute; inset: 0; z-index: -1; background: linear-gradient(180deg, transparent 15%, var(--um-veu) 100%); }
+.um-banner h3 { margin: 0.4rem 0 0.2rem; color: var(--um-marca-ink); font-size: clamp(1.3rem, 4vw, 1.8rem); }
+.um-banner p { margin: 0; color: var(--um-marca-ink); opacity: 0.92; }
+.um-banner:hover { color: var(--um-marca-ink); }
+
+/* Chamada para organizadores */
+.um-chamada {
+    display: grid;
+    gap: 0.75rem;
+    padding: 1.5rem;
+    border-radius: var(--um-radius-lg);
+    background: var(--um-marca-bg);
+    color: var(--um-marca-ink);
+}
+.um-chamada h2 { color: var(--um-marca-ink); margin: 0; }
+.um-chamada p { margin: 0; opacity: 0.92; }
+.um-chamada .um-btn-accent { justify-self: start; }
+
+/* Abas (Pix / Cartão, Hoje / Próximos) */
+.um-abas { display: flex; gap: 0.25rem; padding: 0.25rem; border-radius: var(--um-radius-pill); background: var(--um-surface-2); width: fit-content; max-width: 100%; overflow-x: auto; }
+.um-abas button, .um-abas a {
+    min-height: 40px;
+    padding: 0 1rem;
+    border: 0;
+    border-radius: var(--um-radius-pill);
+    background: transparent;
+    color: var(--um-ink-soft);
+    font: 600 0.9rem var(--um-font);
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.um-abas [aria-selected="true"], .um-abas .is-ativo { background: var(--um-surface-3); color: var(--um-ink); box-shadow: var(--um-shadow-sm); }
+
+/* Seletor de quantidade */
+.um-qtd { display: inline-flex; align-items: center; gap: 0.25rem; border: 1px solid var(--um-border); border-radius: var(--um-radius-pill); background: var(--um-surface-3); }
+.um-qtd button { width: var(--um-tap); height: var(--um-tap); border: 0; border-radius: 50%; background: transparent; color: var(--um-brand); font-size: 1.25rem; font-weight: 700; cursor: pointer; }
+.um-qtd button:disabled { color: var(--um-ink-dim); cursor: not-allowed; }
+.um-qtd output { min-width: 1.75rem; text-align: center; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* Lote de ingresso */
+.um-lote { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.9rem 0; border-bottom: 1px solid var(--um-border-soft); }
+.um-lote:last-child { border-bottom: 0; }
+.um-lote b { display: block; }
+.um-lote small { color: var(--um-ink-muted); }
+
+/* Barra de compra (no celular, na zona do polegar) */
+.um-barra-compra {
+    position: sticky;
+    bottom: calc(var(--um-bottomnav) + 0.5rem);
+    z-index: var(--um-z-sticky);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-top: 1rem;
+    padding: 0.75rem 0.75rem 0.75rem 1.1rem;
+    border-radius: var(--um-radius-pill);
+    background: var(--um-grey);
+    color: var(--um-off-white);
+    box-shadow: var(--um-shadow-lg);
+}
+.um-barra-compra b { font-size: 1.05rem; font-variant-numeric: tabular-nums; }
+@media (min-width: 1025px) { .um-barra-compra { bottom: 1rem; } }
+
+/* Ingresso emitido */
+.um-ticket {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 1rem;
+    align-items: center;
+    padding: 1rem;
+    border: 1px dashed var(--um-border-strong);
+    border-radius: var(--um-radius);
+    background: var(--um-surface-3);
+}
+.um-qr { width: 132px; height: 132px; padding: 8px; border-radius: var(--um-radius-sm); background: var(--um-papel-qr); display: block; }
+.um-qr-grande { width: 220px; height: 220px; }
+
+/* Tabela que vira card no celular */
+.um-table-wrap { position: relative; overflow-x: auto; border: 1px solid var(--um-border-soft); border-radius: var(--um-radius); background: var(--um-surface); }
+.um-table { width: 100%; border-collapse: collapse; font-size: 0.9375rem; }
+.um-table th { text-align: left; padding: 0.75rem 1rem; font-size: 0.75rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--um-ink-muted); border-bottom: 1px solid var(--um-border); background: var(--um-surface); }
+.um-table td { padding: 0.75rem 1rem; border-bottom: 1px solid var(--um-border-soft); vertical-align: middle; overflow-wrap: break-word; }
+.um-table tr:last-child td { border-bottom: 0; }
+.um-table .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+@media (max-width: 640px) {
+    .um-table thead { display: none; }
+    .um-table, .um-table tbody, .um-table tr, .um-table td { display: block; width: 100%; }
+    .um-table tr { padding: 0.75rem 1rem; border-bottom: 1px solid var(--um-border-soft); }
+    .um-table td { padding: 0.2rem 0; border: 0; }
+    .um-table td[data-rotulo]::before { content: attr(data-rotulo) ": "; color: var(--um-ink-muted); font-size: 0.8125rem; }
+    .um-table .num { text-align: left; }
 }
 
-.form-floating > .form-control-plaintext::placeholder, .form-floating > .form-control::placeholder {
-    color: var(--bs-secondary-color);
-    text-align: end;
+/* KPIs em grade (2×2 no celular) */
+.um-kpis { display: grid; gap: 0.75rem; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (min-width: 900px) { .um-kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.um-kpi-sub { font-size: 0.8125rem; color: var(--um-ink-muted); }
+
+/* Barrinhas simples (vendas por dia, por nicho) — CSS puro, sem biblioteca */
+.um-barras { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; align-items: end; gap: 4px; height: 140px; padding-top: 0.5rem; }
+.um-barras span { display: block; min-height: 2px; border-radius: 4px 4px 0 0; background: var(--um-brand); height: var(--h); }
+.um-barras span.is-hoje { background: var(--um-accent); }
+.um-barras-eixo { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; font-size: 0.6875rem; color: var(--um-ink-muted); text-align: center; font-variant-numeric: tabular-nums; }
+.um-rank { display: grid; gap: 0.6rem; margin: 0; padding: 0; list-style: none; }
+.um-rank li { display: grid; grid-template-columns: minmax(0, 9rem) 1fr auto; gap: 0.75rem; align-items: center; font-size: 0.9rem; }
+.um-rank-trilho { height: 10px; border-radius: 5px; background: var(--um-surface-2); overflow: hidden; }
+.um-rank-trilho span { display: block; height: 100%; width: var(--w); background: var(--um-brand); border-radius: 5px; }
+
+/* Menu da conta (details/summary: funciona sem JS) */
+.um-menu { position: relative; }
+.um-menu > summary {
+    list-style: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: var(--um-tap);
+    padding: 0 0.6rem 0 0.35rem;
+    border-radius: var(--um-radius-pill);
+    cursor: pointer;
+    font-weight: 600;
+    color: var(--um-ink);
+}
+.um-menu > summary::-webkit-details-marker { display: none; }
+.um-menu > summary:hover { background: var(--um-brand-soft); }
+.um-avatar { width: 34px; height: 34px; border-radius: 50%; display: inline-grid; place-items: center; background: var(--um-brand); color: var(--um-brand-ink); font-size: 0.875rem; font-weight: 700; }
+.um-menu-painel {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 6px);
+    z-index: var(--um-z-dropdown);
+    min-width: 240px;
+    padding: 0.5rem;
+    border: 1px solid var(--um-border);
+    border-radius: var(--um-radius);
+    background: var(--um-surface-3);
+    box-shadow: var(--um-shadow-lg);
+}
+.um-menu-painel a, .um-menu-painel button {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    min-height: var(--um-tap);
+    padding: 0 0.75rem;
+    border: 0;
+    border-radius: var(--um-radius-sm);
+    background: transparent;
+    color: var(--um-ink);
+    font: 500 0.95rem var(--um-font);
+    text-decoration: none;
+    cursor: pointer;
+}
+.um-menu-painel a:hover, .um-menu-painel button:hover { background: var(--um-brand-soft); }
+.um-menu-painel hr { border: 0; border-top: 1px solid var(--um-border-soft); margin: 0.35rem 0; }
+.um-menu-quem { padding: 0.5rem 0.75rem; font-size: 0.8125rem; color: var(--um-ink-muted); }
+.um-menu-quem b { display: block; color: var(--um-ink); font-size: 0.95rem; }
+@media (max-width: 480px) { .um-menu-nome { display: none; } }
+
+/* Formulário em grade */
+.um-form { display: grid; gap: 1rem; }
+.um-form-2 { display: grid; gap: 1rem; }
+@media (min-width: 641px) { .um-form-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.um-check { display: flex; align-items: flex-start; gap: 0.6rem; min-height: var(--um-tap); cursor: pointer; }
+.um-check input { width: 20px; height: 20px; margin-top: 0.15rem; accent-color: var(--um-brand); }
+.um-cartao-auth { width: 100%; max-width: 420px; margin: 2rem auto; padding: 1.5rem; }
+
+/* Galeria de fotos para escolher (organizador) */
+.um-galeria { display: grid; gap: 0.5rem; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
+.um-galeria button { padding: 0; border: 2px solid transparent; border-radius: var(--um-radius-sm); overflow: hidden; background: var(--um-surface-2); cursor: pointer; aspect-ratio: 16 / 9; }
+.um-galeria button img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.um-galeria button[aria-pressed="true"] { border-color: var(--um-accent); }
+
+/* Página do evento */
+.um-capa { position: relative; aspect-ratio: 16 / 9; max-height: 460px; width: 100%; overflow: hidden; background: var(--um-surface-2); }
+.um-capa img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 68%; display: block; } /* os bonequinhos das ilustrações ficam embaixo: no corte largo do desktop, mostra mais da parte de baixo */
+@media (min-width: 981px) { .um-capa { border-radius: var(--um-radius-lg); margin-top: 1rem; } }
+.um-evento-grade { display: grid; gap: 1.5rem; }
+@media (min-width: 981px) { .um-evento-grade { grid-template-columns: minmax(0, 1fr) 380px; align-items: start; } }
+.um-caixa-compra { position: sticky; top: calc(var(--um-header) + 1rem); }
+.um-fatos { display: grid; gap: 0.75rem; margin: 0; padding: 0; list-style: none; }
+.um-fatos li { display: grid; grid-template-columns: 24px 1fr; gap: 0.75rem; align-items: start; }
+.um-fatos svg { width: 22px; height: 22px; color: var(--um-brand); }
+
+/* Mapa em tela cheia */
+.um-mapa-pagina { position: relative; }
+.um-mapa { height: calc(100dvh - var(--um-header) - var(--um-bottomnav)); min-height: 420px; width: 100%; background: var(--um-surface-2); }
+@media (min-width: 1025px) { .um-mapa { height: calc(100dvh - var(--um-header)); } }
+.um-mini-mapa { height: 220px; border-radius: var(--um-radius); overflow: hidden; background: var(--um-surface-2); }
+.um-mapa-pino { background: none; border: 0; }
+.um-mapa-pino span { position: absolute; left: 3px; top: 0; width: 26px; height: 26px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); background: var(--um-deep-green); box-shadow: 0 0 0 2px var(--um-off-white), var(--um-shadow-sm); }
+.um-mapa-pino span::after { content: ""; position: absolute; inset: 8px; border-radius: 50%; background: var(--um-off-white); }
+.um-mapa-pino.is-aovivo span { background: var(--um-coral); }
+.um-mapa-pino:focus-visible { outline: 2px solid var(--um-focus); outline-offset: 4px; border-radius: 50%; }
+.um-mapa-popup { display: grid; gap: 0.35rem; min-width: 210px; font-family: var(--um-font); }
+.um-mapa-popup img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: var(--um-radius-sm); }
+.um-mapa-popup b { font-family: var(--um-display); color: var(--um-deep-green); font-size: 1rem; }
+.um-mapa-popup span { font-size: 0.8125rem; color: var(--um-grey); }
+.um-mapa-popup a { font-weight: 600; color: var(--um-deep-green); }
+.um-mapa-filtros { position: absolute; z-index: 500; left: 0; right: 0; top: 0.75rem; padding-inline: var(--um-gutter); pointer-events: none; }
+.um-mapa-filtros .um-chip-row { pointer-events: auto; }
+.um-mapa-filtros .um-chip { box-shadow: var(--um-shadow); }
+.um-mapa-gps { position: absolute; z-index: 500; right: var(--um-gutter); bottom: 1.25rem; box-shadow: var(--um-shadow-lg); }
+/* Cluster do markercluster na identidade (o CSS padrão dele usa verde e amarelo próprios) */
+.marker-cluster-small, .marker-cluster-medium, .marker-cluster-large { background: var(--um-brand-soft) !important; }
+.marker-cluster-small div, .marker-cluster-medium div, .marker-cluster-large div { background: var(--um-deep-green) !important; color: var(--um-off-white) !important; font: 700 0.8125rem var(--um-font) !important; }
+/* Modo escuro dos tiles: só o painel de tiles é filtrado; os pinos ficam na cor certa. */
+:root[data-theme="dark"] .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.9); }
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.9); }
 }
 
-.form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
-    text-align: start;
+/* Aviso da simulação de pagamento */
+.um-simulacao {
+    display: flex;
+    gap: 0.6rem;
+    align-items: flex-start;
+    padding: 0.75rem 1rem;
+    border-radius: var(--um-radius);
+    background: var(--um-info-bg);
+    color: var(--um-ink);
+    border-left: 3px solid var(--um-info);
+    font-size: 0.9rem;
 }
+
+/* Cabeçalho de página interna (nicho, painel) */
+.um-pagina-cab { padding-block: 1.25rem 0.5rem; }
+.um-pagina-cab h1 { margin: 0.35rem 0 0.25rem; }
+.um-pagina-cab p { margin: 0; color: var(--um-ink-soft); }
+.um-nicho-capa { display: grid; grid-template-columns: 88px 1fr; gap: 1rem; align-items: center; }
+.um-nicho-capa img { width: 88px; height: 88px; border-radius: 50%; object-fit: cover; box-shadow: 0 0 0 3px var(--um-accent); }
+
+/* ─── Leaflet na identidade (molde do MyPods: só tokens) ─────────────────────── */
+.leaflet-container { font-family: var(--um-font); background: var(--um-surface-2); }
+/* O Leaflet 1.9 mistura os tiles com plus-lighter: com o mapa em posição fracionária, a emenda vira uma linha (medido
+   no MyPods a 390 px). Com a mistura normal, nenhuma linha. */
+.leaflet-container img.leaflet-tile { mix-blend-mode: normal; }
+.leaflet-container .leaflet-control-attribution { background: color-mix(in srgb, var(--um-surface) 82%, transparent); color: var(--um-ink-muted); font-size: 10px; }
+.leaflet-container .leaflet-control-attribution a { color: var(--um-ink-soft); }
+.leaflet-container .leaflet-bar { border: 1px solid var(--um-border); box-shadow: var(--um-shadow-sm); }
+.leaflet-container .leaflet-bar a { width: 36px; height: 36px; line-height: 36px; background: var(--um-surface-3); color: var(--um-ink); border-bottom-color: var(--um-border); }
+@media (pointer: coarse) { .leaflet-container .leaflet-bar a { width: var(--um-tap); height: var(--um-tap); line-height: var(--um-tap); } }
+.leaflet-container .leaflet-bar a:hover { background: var(--um-surface-2); color: var(--um-brand); }
+.leaflet-popup-content-wrapper, .leaflet-popup-tip { background: var(--um-surface-3); color: var(--um-ink); box-shadow: var(--um-shadow-lg); }
+[data-mapa-falhou] { display: none; }
+.um-mapa-raio { stroke: var(--um-brand); stroke-opacity: .85; fill: var(--um-brand); fill-opacity: .06; }
+.um-mapa-base { background: none; border: 0; }
+.um-mapa-base span { position: absolute; inset: 0; border-radius: 50%; background: var(--um-surface-3); border: 2px solid var(--um-brand); display: grid; place-items: center; box-shadow: var(--um-shadow-sm); }
+.um-mapa-base svg { width: 14px; height: 14px; fill: var(--um-brand); }
+.um-mapa-voce { stroke: var(--um-info); fill: var(--um-info); fill-opacity: .25; }

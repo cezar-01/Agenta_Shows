@@ -1,0 +1,2 @@
+# Bibliotecas de terceiros vão byte a byte: o CSS oficial do Leaflet tem CRLF, e normalizar quebrou o CI do MyPods.
+src/Agenda_Shows.UI/wwwroot/js/vendor/** -text

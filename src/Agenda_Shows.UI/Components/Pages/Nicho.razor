@@ -1,0 +1,187 @@
+@page "/nicho/{Slug}"
+@using Microsoft.Extensions.Logging
+@inject ICatalogo Catalogo
+@inject TimeProvider Relogio
+@inject NavigationManager Nav
+@inject ILogger<Nicho> Log
+
+@* A página de um nicho (a "categoria" do iFood): capa redonda, as outras bolinhas para pular de nicho, e os eventos em
+   três blocos — ao vivo agora, hoje e próximos dias. Bloco vazio não aparece. SSR estático. *@
+
+<PageTitle>@titulo</PageTitle>
+@if (pagina is { } cab)
+{
+    <HeadContent>
+        <meta name="description" content="@($"{cab.Nicho.Nome} em Curitiba: {cab.Nicho.Descricao}")" />
+    </HeadContent>
+}
+
+@if (naoAchou)
+{
+    <section class="um-section">
+        <div class="um-container um-empty">
+            <span class="um-eyebrow">404</span>
+            <h1>Esse nicho não existe</h1>
+            <p>O endereço pode ter mudado. Os eventos continuam todos na agenda.</p>
+            <a href="/eventos" class="um-btn um-btn-primary">Ver todos os eventos</a>
+        </div>
+    </section>
+}
+else if (falhou)
+{
+    <section class="um-section">
+        <div class="um-container">
+            <h1 class="um-visually-hidden">Nicho</h1>
+            <div class="um-alert um-alert-danger" role="alert">
+                <div>
+                    <b>Não consegui carregar os eventos agora</b>
+                    Pode ser a conexão ou o nosso servidor. Tente de novo em instantes.
+                </div>
+            </div>
+        </div>
+    </section>
+}
+else if (pagina is { } p)
+{
+    var n = p.Nicho;
+    var total = p.AoVivo.Count + p.Hoje.Count + p.Proximos.Count;
+
+    <header class="um-pagina-cab">
+        <div class="um-container">
+            <div class="um-nicho-capa">
+                <img src="@FotoDoNicho(n)" alt="" width="88" height="88" decoding="async" />
+                <div>
+                    <span class="um-eyebrow">Nicho</span>
+                    <h1>@n.Nome</h1>
+                    @if (!string.IsNullOrWhiteSpace(n.Descricao))
+                    {
+                        <p>@n.Descricao</p>
+                    }
+                    <p class="um-nicho-conta"><span class="um-badge um-tnum">@ContaTexto(total)</span></p>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="um-container um-nicho-pagina">
+        @if (nichos.Count > 0)
+        {
+            <nav class="um-nichos" aria-label="Nichos">
+                @foreach (var outro in nichos)
+                {
+                    var ativo = outro.Slug == n.Slug;
+                    <a href="/nicho/@outro.Slug" class="um-nicho @(ativo ? "is-ativo" : "")" aria-current="@(ativo ? "page" : null)">
+                        <img src="@FotoDoNicho(outro)" alt="" width="72" height="72" loading="lazy" decoding="async" />
+                        <span>@outro.Nome</span>
+                    </a>
+                }
+            </nav>
+        }
+
+        @if (total == 0)
+        {
+            <div class="um-empty">
+                <h2>Nada de @n.Nome.ToLowerInvariant() marcado por enquanto</h2>
+                <p>Quando alguém publicar, aparece aqui. Enquanto isso, tem muita coisa rolando em outros nichos.</p>
+                <a href="/eventos" class="um-btn um-btn-primary">Ver todos os eventos</a>
+            </div>
+        }
+        else
+        {
+            @foreach (var s in Secoes(p))
+            {
+                @if (s.Eventos.Count > 0)
+                {
+                    <section class="um-nicho-sec" aria-labelledby="@s.Id">
+                        <div class="um-trilho-cab">
+                            <div>
+                                <h2 id="@s.Id">@s.Titulo</h2>
+                                <p>@s.Sub</p>
+                            </div>
+                        </div>
+                        <div class="um-grid" role="list" data-um-motion="reveal-group">
+                            @foreach (var e in s.Eventos)
+                            {
+                                <div role="listitem"><EventoCardView Evento="e" Agora="agora" /></div>
+                            }
+                        </div>
+                    </section>
+                }
+            }
+        }
+    </div>
+}
+
+<style>
+    .um-pagina-cab .um-nicho-conta { margin-top: 0.6rem; }
+    .um-nicho-pagina { padding-bottom: 2.5rem; }
+    .um-nicho-pagina .um-nichos { margin-top: 0.75rem; }
+    .um-nicho-sec { padding-top: 1.5rem; }
+    .um-nicho-sec .um-trilho-cab { margin-bottom: 0.9rem; }
+    @@media (max-width: 480px) {
+        .um-nicho-capa { grid-template-columns: 72px 1fr; }
+        .um-nicho-capa img { width: 72px; height: 72px; }
+    }
+</style>
+
+@code {
+    [Parameter] public string Slug { get; set; } = string.Empty;
+
+    private PaginaDoNicho? pagina;
+    private IReadOnlyList<CategoriaDto> nichos = [];
+    private bool naoAchou;
+    private bool falhou;
+    private DateTime agora;
+    private string titulo = "Nicho · UMURA";
+
+    private sealed record Secao(string Id, string Titulo, string Sub, IReadOnlyList<EventoCard> Eventos);
+
+    protected override async Task OnParametersSetAsync()
+    {
+        agora = Relogio.GetUtcNow().UtcDateTime;
+        pagina = null;
+        naoAchou = falhou = false;
+        var slug = (Slug ?? string.Empty).Trim().ToLowerInvariant();
+
+        try
+        {
+            pagina = slug.Length is > 0 and <= 40 ? await Catalogo.NichoAsync(slug) : null;
+            if (pagina is not null) nichos = await Catalogo.NichosAsync();
+        }
+        catch (Exception ex)
+        {
+            Log.LogWarning("Página do nicho indisponível ({Erro}).", ex.GetType().Name);
+            falhou = true;
+            titulo = "Nicho · UMURA";
+            return;
+        }
+
+        if (pagina is null)
+        {
+            naoAchou = true;
+            titulo = "Nicho não encontrado · UMURA";
+            // .NET 10: responde 404 e o Router desenha a NotFoundPage; a mensagem acima é a rede de segurança.
+            Nav.NotFound();
+            return;
+        }
+
+        titulo = $"{pagina.Nicho.Nome} · UMURA";
+    }
+
+    private static IEnumerable<Secao> Secoes(PaginaDoNicho p) =>
+    [
+        new("nicho-aovivo", "Ao vivo agora", "Acontecendo neste momento", p.AoVivo),
+        new("nicho-hoje", "Hoje", "Ainda dá tempo de ir", p.Hoje),
+        new("nicho-proximos", "Próximos dias", "Para já deixar na agenda", p.Proximos),
+    ];
+
+    private static string ContaTexto(int n) => n switch
+    {
+        0 => "Nenhum evento marcado",
+        1 => "1 evento na agenda",
+        _ => $"{n} eventos na agenda",
+    };
+
+    private static string FotoDoNicho(CategoriaDto n) =>
+        string.IsNullOrWhiteSpace(n.ImagemUrl) ? Foto.Card(null) : n.ImagemUrl;
+}

@@ -1,0 +1,348 @@
+@page "/admin/eventos"
+@attribute [Authorize(Roles = Papeis.Admin)]
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@using System.Globalization
+@inject IAreaDoAdmin Area
+@inject IAreaDoOrganizador AreaDoOrg
+@inject TimeProvider Relogio
+@inject ILogger<Eventos> Log
+
+@* A moderação dos eventos: todos, de todos os organizadores. Destacar na vitrine é decisão do admin; editar e ver as
+   vendas usam as telas do organizador (o admin passa por todas as portas); cancelar pede dois cliques. *@
+
+<PageTitle>Eventos (admin) · UMURA</PageTitle>
+
+<div class="um-container ade">
+    <header class="um-pagina-cab">
+        <a href="/admin" class="ade-voltar">Painel do admin</a>
+        <h1>Eventos</h1>
+        <p>Todos os eventos de todos os organizadores. Destaque o que merece a vitrine, corrija ou cancele.</p>
+    </header>
+
+    <form class="ade-busca" role="search" @onsubmit="BuscarAsync">
+        <label for="ade-q" class="um-visually-hidden">Buscar eventos</label>
+        <div class="um-busca">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" />
+            </svg>
+            <input id="ade-q" type="search" @bind="busca" @bind:event="oninput" placeholder="Título, local ou organizador"
+                   maxlength="80" autocomplete="off" enterkeyhint="search" />
+            <button type="submit" class="um-btn um-btn-primary" disabled="@carregando">Buscar</button>
+        </div>
+    </form>
+
+    <div role="status" class="ade-status">
+        @if (aviso is not null)
+        {
+            <div class="um-alert @avisoClasse">
+                <div>@aviso</div>
+            </div>
+        }
+    </div>
+
+    @if (erro is not null)
+    {
+        <div class="um-alert um-alert-danger" role="alert">
+            <div><b>Não deu para continuar.</b> @erro</div>
+        </div>
+    }
+
+    @if (eventos is null)
+    {
+        @if (erro is null)
+        {
+            <p class="um-visually-hidden" role="status">Carregando os eventos…</p>
+            <div class="um-card" aria-hidden="true"><span class="um-skeleton ade-sk"></span></div>
+        }
+        else
+        {
+            <div>
+                <button type="button" class="um-btn um-btn-outline" @onclick="CarregarAsync">Tentar de novo</button>
+            </div>
+        }
+    }
+    else if (eventos.Count == 0)
+    {
+        <div class="um-card um-empty">
+            <h3>Nenhum evento encontrado</h3>
+            <p>@(buscou is null ? "Ainda não há eventos cadastrados." : $"Nada com “{buscou}”. Tente outro título, local ou organizador.")</p>
+        </div>
+    }
+    else
+    {
+        <p class="um-hint">
+            @Num(eventos.Count) @(eventos.Count == 1 ? "evento" : "eventos")@(buscou is null ? "" : $" com “{buscou}”")@(eventos.Count >= Limite ? $" — mostrando os {Limite} mais recentes" : "")
+        </p>
+        <div class="um-table-wrap">
+            <table class="um-table ade-tabela">
+                <caption class="um-visually-hidden">Eventos, do que acontece mais tarde para o mais antigo</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">Evento</th>
+                        <th scope="col">Organizador</th>
+                        <th scope="col">Quando</th>
+                        <th scope="col">Status</th>
+                        <th scope="col" class="num">Vendidos</th>
+                        <th scope="col"><span class="um-visually-hidden">Ações</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var l in eventos)
+                    {
+                        var (classe, texto) = StatusDe(l);
+                        var cancelado = l.Status == StatusDoEvento.Cancelado;
+                        var confirmando = confirmar == l.Id;
+                        <tr @key="l.Id">
+                            <td>
+                                <div class="ade-ev">
+                                    <img src="@Foto.Card(l.ImagemUrl)" alt="" width="72" height="40" loading="lazy" decoding="async" />
+                                    <div>
+                                        @if (l.Status == StatusDoEvento.Rascunho)
+                                        {
+                                            <b>@l.Titulo</b>
+                                        }
+                                        else
+                                        {
+                                            <a href="@($"/evento/{l.Slug}")" class="ade-titulo">@l.Titulo</a>
+                                        }
+                                        <small>@l.Categoria</small>
+                                    </div>
+                                </div>
+                            </td>
+                            <td data-rotulo="Organizador">@l.Organizador</td>
+                            <td data-rotulo="Quando" class="um-tnum">@BrazilTime.Format(l.InicioUtc, "dd/MM HH:mm")</td>
+                            <td data-rotulo="Status">
+                                <span class="ade-badges">
+                                    <span class="um-badge @classe">@texto</span>
+                                    @if (l.Destaque && !cancelado)
+                                    {
+                                        <span class="um-badge um-badge-info">★ Destaque</span>
+                                    }
+                                </span>
+                            </td>
+                            <td data-rotulo="Vendidos" class="num">@Num(l.Vendidos)/@Num(l.Capacidade)</td>
+                            <td>
+                                <div class="ade-acoes">
+                                    @if (!cancelado)
+                                    {
+                                        <button type="button" class="um-btn um-btn-outline" disabled="@(ocupado is not null)"
+                                                @onclick="() => AlternarDestaqueAsync(l)">
+                                            @(l.Destaque ? "Tirar destaque" : "Destacar")<span class="um-visually-hidden"> @l.Titulo</span>
+                                        </button>
+                                        <a href="@($"/organizador/evento/{l.Id}")" class="um-btn um-btn-ghost">Editar<span class="um-visually-hidden"> @l.Titulo</span></a>
+                                    }
+                                    <a href="@($"/organizador/evento/{l.Id}/vendas")" class="um-btn um-btn-ghost">Vendas<span class="um-visually-hidden"> de @l.Titulo</span></a>
+                                    @if (!cancelado)
+                                    {
+                                        @* O MESMO botão vira a confirmação: o foco não se perde entre o primeiro e o segundo clique. *@
+                                        <button type="button" class="um-btn um-btn-danger" disabled="@(ocupado is not null)"
+                                                @onclick="() => CliqueCancelarAsync(l)">
+                                            @(confirmando ? "Confirmar cancelamento" : "Cancelar")<span class="um-visually-hidden"> @l.Titulo</span>
+                                        </button>
+                                        @if (confirmando)
+                                        {
+                                            <button type="button" class="um-btn um-btn-ghost" disabled="@(ocupado is not null)" @onclick="Desistir">
+                                                Voltar<span class="um-visually-hidden">, não cancelar @l.Titulo</span>
+                                            </button>
+                                        }
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+@code {
+    private static readonly CultureInfo PtBr = CultureInfo.GetCultureInfo("pt-BR");
+
+    /// <summary>O teto da lista do serviço (<c>AreaDoAdmin.EventosAsync</c> traz no máximo 300).</summary>
+    private const int Limite = 300;
+
+    [CascadingParameter] private Task<AuthenticationState>? Estado { get; set; }
+
+    private ClaimsPrincipal user = new(new ClaimsIdentity());
+    private List<LinhaDoMeuEvento>? eventos;
+    private string busca = string.Empty;
+    private string? buscou;
+    private bool carregando;
+    private string? erro;
+    private string? aviso;
+    private string avisoClasse = "um-alert-info";
+    private int? confirmar;
+    private int? ocupado;
+    private DateTime agora;
+
+    protected override async Task OnInitializedAsync()
+    {
+        user = Estado is null ? new ClaimsPrincipal(new ClaimsIdentity()) : (await Estado).User;
+        await CarregarAsync();
+    }
+
+    private async Task BuscarAsync()
+    {
+        aviso = null;
+        confirmar = null;
+        await CarregarAsync();
+    }
+
+    private async Task CarregarAsync()
+    {
+        if (carregando) return;
+        carregando = true;
+        erro = null;
+        agora = Relogio.GetUtcNow().UtcDateTime;
+        try
+        {
+            var termo = string.IsNullOrWhiteSpace(busca) ? null : busca.Trim();
+            eventos = (await Area.EventosAsync(user, termo)).ToList();
+            buscou = termo;
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            erro = ex.Message;
+        }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "Falha ao listar os eventos no admin.");
+            erro = "A lista de eventos não carregou agora. Tente de novo em instantes.";
+        }
+        finally
+        {
+            carregando = false;
+        }
+    }
+
+    private async Task AlternarDestaqueAsync(LinhaDoMeuEvento l)
+    {
+        if (ocupado is not null) return;
+        ocupado = l.Id;
+        confirmar = null;
+        aviso = null;
+        erro = null;
+        try
+        {
+            var r = await Area.AlternarDestaqueAsync(user, l.Id);
+            if (!r.Ok)
+            {
+                Avisar(r.Erro ?? "Não deu para mudar o destaque.", "um-alert-danger");
+                return;
+            }
+            Trocar(l with { Destaque = r.Valor });
+            Avisar(r.Valor ? $"“{l.Titulo}” agora aparece nos destaques da vitrine." : $"“{l.Titulo}” saiu dos destaques.",
+                "um-alert-success");
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            erro = ex.Message;
+        }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "Falha ao alternar o destaque do evento {Id}.", l.Id);
+            Avisar("Não deu para mudar o destaque agora. Tente de novo.", "um-alert-danger");
+        }
+        finally
+        {
+            ocupado = null;
+        }
+    }
+
+    /// <summary>Primeiro clique: pede a confirmação. Segundo clique (no mesmo botão): cancela.</summary>
+    private async Task CliqueCancelarAsync(LinhaDoMeuEvento l)
+    {
+        if (ocupado is not null) return;
+        if (confirmar != l.Id)
+        {
+            confirmar = l.Id;
+            erro = null;
+            Avisar($"Cancelar “{l.Titulo}”? Ele sai da vitrine e do mapa, e quem comprou ingresso vê o evento como cancelado. " +
+                   "Clique em “Confirmar cancelamento” para seguir.", "um-alert-warning");
+            return;
+        }
+
+        ocupado = l.Id;
+        erro = null;
+        try
+        {
+            // O admin passa pela porta do dono (Autorizacao.EnsureDonoDoEvento): o mesmo cancelamento do organizador.
+            var r = await AreaDoOrg.CancelarAsync(user, l.Id);
+            if (!r.Ok)
+            {
+                Avisar(r.Erro ?? "Não deu para cancelar o evento.", "um-alert-danger");
+                return;
+            }
+            Trocar(l with { Status = StatusDoEvento.Cancelado });
+            Avisar($"“{l.Titulo}” foi cancelado. Saiu da vitrine e do mapa.", "um-alert-success");
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            erro = ex.Message;
+        }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "Falha ao cancelar o evento {Id} pelo admin.", l.Id);
+            Avisar("Não deu para cancelar agora. Tente de novo.", "um-alert-danger");
+        }
+        finally
+        {
+            ocupado = null;
+            confirmar = null;
+        }
+    }
+
+    private void Desistir()
+    {
+        confirmar = null;
+        Avisar("Tudo certo, o evento continua no ar.", "um-alert-info");
+    }
+
+    private void Avisar(string texto, string classe)
+    {
+        aviso = texto;
+        avisoClasse = classe;
+    }
+
+    private void Trocar(LinhaDoMeuEvento nova)
+    {
+        if (eventos is null) return;
+        var i = eventos.FindIndex(x => x.Id == nova.Id);
+        if (i >= 0) eventos[i] = nova;
+    }
+
+    /// <summary>O status sempre em texto junto da cor: Cancelado / Rascunho / Encerrado / Ao vivo / No ar.</summary>
+    private (string Classe, string Texto) StatusDe(LinhaDoMeuEvento l)
+    {
+        if (l.Status == StatusDoEvento.Cancelado) return ("um-badge-danger", "Cancelado");
+        if (l.Status == StatusDoEvento.Rascunho) return ("um-badge-warning", "Rascunho");
+        if (l.FimUtc <= agora) return ("", "Encerrado");
+        if (l.InicioUtc <= agora) return ("um-badge-now", "Ao vivo");
+        return ("um-badge-success", "No ar");
+    }
+
+    private static string Num(int n) => n.ToString("N0", PtBr);
+}
+
+<style>
+    .ade { display: grid; gap: 1rem; padding-bottom: var(--um-sec-pad); }
+    .ade-voltar { display: inline-flex; align-items: center; gap: 0.35rem; min-height: var(--um-tap); font-weight: 600; font-size: 0.9375rem; }
+    .ade-voltar::before { content: "←"; }
+    .ade-busca { max-width: 640px; }
+    .ade-status:empty { margin-top: -1rem; }
+    .ade-sk { display: block; width: 100%; height: 280px; }
+
+    .ade-ev { display: flex; align-items: center; gap: 0.75rem; min-width: 14rem; }
+    .ade-ev img { width: 72px; height: 40px; flex: none; object-fit: cover; border-radius: var(--um-radius-sm); background: var(--um-surface-2); }
+    .ade-ev b, .ade-titulo { display: block; font-weight: 600; color: var(--um-brand); line-height: 1.25; }
+    .ade-ev small { display: block; color: var(--um-ink-muted); font-size: 0.8125rem; font-weight: 600; }
+    .ade-badges { display: inline-flex; flex-wrap: wrap; gap: 0.3rem; }
+    .ade-acoes { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.25rem; min-width: 16rem; }
+    .ade-acoes .um-btn { padding-inline: 0.9rem; }
+
+    @@media (max-width: 640px) {
+        .ade-ev { min-width: 0; margin-bottom: 0.35rem; }
+        .ade-acoes { justify-content: flex-start; min-width: 0; margin-top: 0.5rem; }
+    }
+</style>

@@ -1,0 +1,290 @@
+@page "/admin/usuarios"
+@attribute [Authorize(Roles = Papeis.Admin)]
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@using System.Globalization
+@inject IContas ServicoDeContas
+@inject ILogger<Usuarios> Log
+
+@* As contas: quem é público, quem organiza e quem é da equipe. O papel muda por linha (escolhe e salva); o serviço
+   recusa o admin tirar o próprio acesso, e a mensagem dele aparece aqui. *@
+
+<PageTitle>Usuários (admin) · UMURA</PageTitle>
+
+<div class="um-container adu">
+    <header class="um-pagina-cab">
+        <a href="/admin" class="adu-voltar">Painel do admin</a>
+        <h1>Usuários</h1>
+        <p>Quem é público, quem organiza eventos e quem é da equipe. Mudar o papel vale para a pessoa em até 2 minutos.</p>
+    </header>
+
+    <form class="adu-busca" role="search" @onsubmit="BuscarAsync">
+        <label for="adu-q" class="um-visually-hidden">Buscar contas</label>
+        <div class="um-busca">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" />
+            </svg>
+            <input id="adu-q" type="search" @bind="busca" @bind:event="oninput" placeholder="Nome, e-mail ou organização"
+                   maxlength="80" autocomplete="off" enterkeyhint="search" />
+            <button type="submit" class="um-btn um-btn-primary" disabled="@carregando">Buscar</button>
+        </div>
+    </form>
+
+    <div role="status" class="adu-status">
+        @if (aviso is not null)
+        {
+            <div class="um-alert @avisoClasse">
+                <div>@aviso</div>
+            </div>
+        }
+    </div>
+
+    @if (erro is not null)
+    {
+        <div class="um-alert um-alert-danger" role="alert">
+            <div><b>Não deu para continuar.</b> @erro</div>
+        </div>
+    }
+
+    @if (linhas is null)
+    {
+        @if (erro is null)
+        {
+            <p class="um-visually-hidden" role="status">Carregando as contas…</p>
+            <div class="um-card" aria-hidden="true"><span class="um-skeleton adu-sk"></span></div>
+        }
+        else
+        {
+            <div>
+                <button type="button" class="um-btn um-btn-outline" @onclick="CarregarAsync">Tentar de novo</button>
+            </div>
+        }
+    }
+    else
+    {
+        <section aria-labelledby="adu-contagem">
+            <h2 id="adu-contagem" class="um-visually-hidden">Contas por papel</h2>
+            <div class="um-kpis">
+                <div class="um-kpi">
+                    <span class="um-kpi-label">Contas</span>
+                    <span class="um-kpi-value">@Num(linhas.Count)</span>
+                    <span class="um-kpi-sub">@(buscou is null ? (linhas.Count >= Limite ? $"as {Limite} primeiras" : "no total") : "nesta busca")</span>
+                </div>
+                <div class="um-kpi">
+                    <span class="um-kpi-label">Usuários</span>
+                    <span class="um-kpi-value">@Num(Quantos(Papel.Usuario))</span>
+                    <span class="um-kpi-sub">público</span>
+                </div>
+                <div class="um-kpi">
+                    <span class="um-kpi-label">Organizadores</span>
+                    <span class="um-kpi-value">@Num(Quantos(Papel.Organizador))</span>
+                    <span class="um-kpi-sub">cadastram eventos</span>
+                </div>
+                <div class="um-kpi">
+                    <span class="um-kpi-label">Admins</span>
+                    <span class="um-kpi-value">@Num(Quantos(Papel.Admin))</span>
+                    <span class="um-kpi-sub">equipe UMURA</span>
+                </div>
+            </div>
+        </section>
+
+        @if (linhas.Count == 0)
+        {
+            <div class="um-card um-empty">
+                <h3>Nenhuma conta encontrada</h3>
+                <p>@(buscou is null ? "Ainda não há contas." : $"Nada com “{buscou}”. Tente outro nome, e-mail ou organização.")</p>
+            </div>
+        }
+        else
+        {
+            <div class="um-table-wrap">
+                <table class="um-table adu-tabela">
+                    <caption class="um-visually-hidden">Contas, da equipe para o público, em ordem de nome</caption>
+                    <thead>
+                        <tr>
+                            <th scope="col">Nome</th>
+                            <th scope="col">E-mail</th>
+                            <th scope="col">Organização</th>
+                            <th scope="col">Desde</th>
+                            <th scope="col">Papel</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var l in linhas)
+                        {
+                            var u = l.Conta;
+                            var mudou = l.Escolhido != u.Papel;
+                            <tr @key="u.Id">
+                                <td>
+                                    <span class="adu-nome">
+                                        <b>@u.Nome</b>
+                                        @if (u.Id == meuId)
+                                        {
+                                            <span class="um-badge um-badge-info">Você</span>
+                                        }
+                                    </span>
+                                </td>
+                                <td data-rotulo="E-mail"><span class="adu-email">@u.Email</span></td>
+                                <td data-rotulo="Organização">@(string.IsNullOrWhiteSpace(u.NomeDoOrganizador) ? "—" : u.NomeDoOrganizador)</td>
+                                <td data-rotulo="Desde" class="um-tnum">@BrazilTime.Format(u.CriadoEmUtc, "dd/MM/yyyy")</td>
+                                <td>
+                                    <div class="adu-papel">
+                                        <label for="@($"adu-papel-{u.Id}")" class="um-visually-hidden">Papel de @u.Nome</label>
+                                        <select id="@($"adu-papel-{u.Id}")" class="um-select" @bind="l.Escolhido" disabled="@(salvando is not null)">
+                                            <option value="@Papel.Usuario">Usuário</option>
+                                            <option value="@Papel.Organizador">Organizador</option>
+                                            <option value="@Papel.Admin">Admin</option>
+                                        </select>
+                                        <button type="button" class="um-btn @(mudou ? "um-btn-primary" : "um-btn-outline")"
+                                                disabled="@(!mudou || salvando is not null)" @onclick="() => SalvarAsync(l)">
+                                            @(salvando == u.Id ? "Salvando…" : "Salvar")<span class="um-visually-hidden"> o papel de @u.Nome</span>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private static readonly CultureInfo PtBr = CultureInfo.GetCultureInfo("pt-BR");
+
+    /// <summary>O teto da lista do serviço (<c>Contas.ListarAsync</c> traz no máximo 200).</summary>
+    private const int Limite = 200;
+
+    [CascadingParameter] private Task<AuthenticationState>? Estado { get; set; }
+
+    /// <summary>Uma linha da tabela: a conta como está no banco e o papel escolhido no select (ainda não salvo).</summary>
+    private sealed class Linha(UsuarioDto conta)
+    {
+        public UsuarioDto Conta { get; set; } = conta;
+        public Papel Escolhido { get; set; } = conta.Papel;
+    }
+
+    private ClaimsPrincipal user = new(new ClaimsIdentity());
+    private int? meuId;
+    private List<Linha>? linhas;
+    private string busca = string.Empty;
+    private string? buscou;
+    private bool carregando;
+    private int? salvando;
+    private string? erro;
+    private string? aviso;
+    private string avisoClasse = "um-alert-info";
+
+    protected override async Task OnInitializedAsync()
+    {
+        user = Estado is null ? new ClaimsPrincipal(new ClaimsIdentity()) : (await Estado).User;
+        meuId = Autorizacao.UsuarioId(user);
+        await CarregarAsync();
+    }
+
+    private async Task BuscarAsync()
+    {
+        aviso = null;
+        await CarregarAsync();
+    }
+
+    private async Task CarregarAsync()
+    {
+        if (carregando) return;
+        carregando = true;
+        erro = null;
+        try
+        {
+            var termo = string.IsNullOrWhiteSpace(busca) ? null : busca.Trim();
+            linhas = (await ServicoDeContas.ListarAsync(user, termo)).Select(u => new Linha(u)).ToList();
+            buscou = termo;
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            erro = ex.Message;
+        }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "Falha ao listar as contas no admin.");
+            erro = "A lista de contas não carregou agora. Tente de novo em instantes.";
+        }
+        finally
+        {
+            carregando = false;
+        }
+    }
+
+    private async Task SalvarAsync(Linha l)
+    {
+        if (salvando is not null || l.Escolhido == l.Conta.Papel) return;
+        salvando = l.Conta.Id;
+        aviso = null;
+        erro = null;
+        try
+        {
+            var r = await ServicoDeContas.MudarPapelAsync(user, l.Conta.Id, l.Escolhido);
+            if (!r.Ok || r.Valor is null)
+            {
+                // Recusado (ex.: o admin tirando o próprio acesso): o select volta ao papel que vale.
+                l.Escolhido = l.Conta.Papel;
+                Avisar(r.Erro ?? "Não deu para mudar o papel.", "um-alert-danger");
+                return;
+            }
+            l.Conta = r.Valor;
+            l.Escolhido = r.Valor.Papel;
+            Avisar($"{r.Valor.Nome} agora é {NomeDoPapel(r.Valor.Papel)}. A mudança vale para a pessoa em até 2 minutos.", "um-alert-success");
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            l.Escolhido = l.Conta.Papel;
+            erro = ex.Message;
+        }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "Falha ao mudar o papel da conta {Id}.", l.Conta.Id);
+            l.Escolhido = l.Conta.Papel;
+            Avisar("Não deu para salvar agora. Tente de novo.", "um-alert-danger");
+        }
+        finally
+        {
+            salvando = null;
+        }
+    }
+
+    private void Avisar(string texto, string classe)
+    {
+        aviso = texto;
+        avisoClasse = classe;
+    }
+
+    private int Quantos(Papel p) => linhas?.Count(l => l.Conta.Papel == p) ?? 0;
+
+    private static string NomeDoPapel(Papel p) => p switch
+    {
+        Papel.Admin => "admin",
+        Papel.Organizador => "organizador",
+        _ => "usuário",
+    };
+
+    private static string Num(int n) => n.ToString("N0", PtBr);
+}
+
+<style>
+    .adu { display: grid; gap: 1rem; padding-bottom: var(--um-sec-pad); }
+    .adu-voltar { display: inline-flex; align-items: center; gap: 0.35rem; min-height: var(--um-tap); font-weight: 600; font-size: 0.9375rem; }
+    .adu-voltar::before { content: "←"; }
+    .adu-busca { max-width: 640px; }
+    .adu-status:empty { margin-top: -1rem; }
+    .adu-sk { display: block; width: 100%; height: 280px; }
+
+    .adu-nome { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; }
+    .adu-nome b { color: var(--um-brand); }
+    .adu-email { overflow-wrap: anywhere; }
+    .adu-papel { display: flex; align-items: center; gap: 0.5rem; min-width: 17rem; }
+    .adu-papel .um-select { flex: 1; min-width: 9rem; }
+    .adu-papel .um-btn { flex: none; padding-inline: 1rem; }
+
+    @@media (max-width: 640px) {
+        .adu-papel { min-width: 0; margin-top: 0.5rem; }
+    }
+</style>

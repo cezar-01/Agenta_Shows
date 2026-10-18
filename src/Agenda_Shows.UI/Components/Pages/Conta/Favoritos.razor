@@ -1,0 +1,110 @@
+@page "/favoritos"
+@attribute [Authorize]
+@* SSR estático: os eventos que a pessoa guardou, em grade de cards. O que já passou desce para o fim. *@
+@inject IFavoritos ServicoDeFavoritos
+@inject TimeProvider Relogio
+
+<PageTitle>Favoritos · UMURA</PageTitle>
+<HeadContent>
+    <meta name="robots" content="noindex" />
+</HeadContent>
+
+<div class="um-container">
+    <header class="um-pagina-cab">
+        <span class="um-eyebrow">Sua conta</span>
+        <h1>Favoritos</h1>
+        <p>Os eventos que você guardou para não perder.</p>
+    </header>
+</div>
+
+<div class="um-container fav">
+    @if (erro is not null)
+    {
+        <div class="um-alert um-alert-danger" role="alert"><p class="fav-sem-margem">@erro</p></div>
+    }
+    else if (ativos.Count == 0 && passados.Count == 0)
+    {
+        <div class="um-empty">
+            <svg class="fav-vazio-icone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M12 20.5s-7.5-4.6-9.6-9.2A5.3 5.3 0 0 1 12 6.2a5.3 5.3 0 0 1 9.6 5.1c-2.1 4.6-9.6 9.2-9.6 9.2z" />
+            </svg>
+            <h2 class="fav-vazio-titulo">Nada guardado ainda</h2>
+            <p>Na página de um evento, toque em <b>Favoritar</b> e ele aparece aqui para você achar rapidinho depois.</p>
+            <a href="/eventos" class="um-btn um-btn-primary">Explorar eventos</a>
+        </div>
+    }
+    else
+    {
+        @if (ativos.Count > 0)
+        {
+            <section class="um-section-tight" aria-labelledby="fav-proximos">
+                <h2 id="fav-proximos" class="fav-sec">Vem aí <span class="um-muted fav-conta">(@ativos.Count)</span></h2>
+                <div class="um-grid" data-um-motion="reveal-group">
+                    @foreach (var e in ativos)
+                    {
+                        <EventoCardView Evento="e" Agora="agora" />
+                    }
+                </div>
+            </section>
+        }
+        else
+        {
+            <div class="um-alert um-alert-info" role="note">
+                <p class="fav-sem-margem">Seus favoritos já aconteceram. <a href="/eventos">Veja o que rola nos próximos dias</a>.</p>
+            </div>
+        }
+
+        @if (passados.Count > 0)
+        {
+            <section class="um-section-tight" aria-labelledby="fav-passados">
+                <h2 id="fav-passados" class="fav-sec">Já passaram <span class="um-muted fav-conta">(@passados.Count)</span></h2>
+                <div class="um-grid fav-passados">
+                    @foreach (var e in passados)
+                    {
+                        <EventoCardView Evento="e" Agora="agora" />
+                    }
+                </div>
+            </section>
+        }
+    }
+</div>
+
+<style>
+    .fav { padding-bottom: var(--um-sec-pad); }
+    .fav-sem-margem { margin: 0; }
+    .fav-vazio-icone { width: 48px; height: 48px; color: var(--um-brand); }
+    .fav-vazio-titulo { margin: 0.25rem 0 0; font-size: 1.35rem; }
+    .fav-sec { margin: 0 0 0.75rem; font-size: 1.2rem; }
+    .fav-conta { font-family: var(--um-font); font-size: 0.95rem; font-weight: 600; }
+    .fav-passados .um-ev { opacity: 0.8; }
+</style>
+
+@code {
+    [CascadingParameter] private Task<AuthenticationState>? Estado { get; set; }
+
+    private DateTime agora;
+    private string? erro;
+    private List<EventoCard> ativos = [];
+    private List<EventoCard> passados = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        agora = Relogio.GetUtcNow().UtcDateTime;
+        var user = Estado is null ? new ClaimsPrincipal(new ClaimsIdentity()) : (await Estado).User;
+
+        IReadOnlyList<EventoCard> meus;
+        try
+        {
+            meus = await ServicoDeFavoritos.MeusAsync(user);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            erro = ex.Message;
+            return;
+        }
+
+        // O serviço já ordena por início; aqui só separa o que ainda vai rolar do que já terminou.
+        ativos = meus.Where(e => e.FimUtc > agora).ToList();
+        passados = meus.Where(e => e.FimUtc <= agora).OrderByDescending(e => e.InicioUtc).ToList();
+    }
+}

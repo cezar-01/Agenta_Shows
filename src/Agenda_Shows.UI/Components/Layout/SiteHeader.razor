@@ -1,0 +1,74 @@
+@* O cabeçalho: logo + navegação (no desktop; no celular quem navega é a BottomNav) + tema + a conta.
+   Estático: o menu da conta é um <details> (abre sem JS) e o "Sair" é um POST com antiforgery. *@
+<header class="um-header">
+    <div class="um-header-inner">
+        <a href="/" class="um-logo" aria-label="UMURA, início">
+            <LogoUmura />
+            <span>UMURA</span>
+        </a>
+
+        <nav aria-label="Principal">
+            <ul class="um-nav">
+                <li><NavLink href="/" Match="NavLinkMatch.All">Início</NavLink></li>
+                <li><NavLink href="/eventos">Explorar</NavLink></li>
+                <li><NavLink href="/mapa">Mapa</NavLink></li>
+                <AuthorizeView Roles="@Papeis.OrganizadorOuAdmin">
+                    <li><NavLink href="/organizador">Meus eventos</NavLink></li>
+                </AuthorizeView>
+                <AuthorizeView Roles="@Papeis.Admin">
+                    <li><NavLink href="/admin">Admin</NavLink></li>
+                </AuthorizeView>
+            </ul>
+        </nav>
+
+        <div class="um-header-actions">
+            <button type="button" class="um-icon-btn" data-um-tema aria-pressed="false" aria-label="Alternar modo escuro">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" />
+                </svg>
+            </button>
+            <AuthorizeView>
+                <Authorized>
+                    @{
+                        var nome = context.User.Identity?.Name ?? "Conta";
+                        var inicial = nome.Length > 0 ? char.ToUpperInvariant(nome[0]).ToString() : "?";
+                    }
+                    <details class="um-menu">
+                        <summary aria-label="Menu da conta">
+                            <span class="um-avatar" aria-hidden="true">@inicial</span>
+                            <span class="um-menu-nome">@nome.Split(' ')[0]</span>
+                        </summary>
+                        <div class="um-menu-painel">
+                            <div class="um-menu-quem"><b>@nome</b>@PapelLegivel(context.User)</div>
+                            <hr />
+                            <a href="/meus-ingressos">Meus ingressos</a>
+                            <a href="/favoritos">Favoritos</a>
+                            @if (context.User.IsInRole(Papeis.Organizador) || context.User.IsInRole(Papeis.Admin))
+                            {
+                                <a href="/organizador">Área do organizador</a>
+                            }
+                            @if (context.User.IsInRole(Papeis.Admin))
+                            {
+                                <a href="/admin">Painel do admin</a>
+                            }
+                            <a href="/minha-conta">Minha conta</a>
+                            <hr />
+                            <form method="post" action="/sair">
+                                <AntiforgeryToken />
+                                <button type="submit">Sair</button>
+                            </form>
+                        </div>
+                    </details>
+                </Authorized>
+                <NotAuthorized>
+                    <a href="/entrar" class="um-btn um-btn-primary">Entrar</a>
+                </NotAuthorized>
+            </AuthorizeView>
+        </div>
+    </div>
+</header>
+
+@code {
+    private static string PapelLegivel(ClaimsPrincipal u) =>
+        u.IsInRole(Papeis.Admin) ? "Equipe UMURA (admin)" : u.IsInRole(Papeis.Organizador) ? "Organizador" : "Conta pessoal";
+}

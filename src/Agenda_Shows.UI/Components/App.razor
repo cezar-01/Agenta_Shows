@@ -1,23 +1,67 @@
-﻿<!DOCTYPE html>
-<html lang="en">
+<!DOCTYPE html>
+<html lang="pt-BR">
 
 <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    @* viewport-fit=cover faz o env(safe-area-inset-*) valer no iOS (o header e a barra de baixo dependem dele);
+       interactive-widget=resizes-content encolhe o layout quando o teclado abre, e a barra fixa sobe junto. *@
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
     <base href="/" />
-    <ResourcePreloader />
-    <link rel="stylesheet" href="@Assets["lib/bootstrap/dist/css/bootstrap.min.css"]" />
+    @* A cor da barra do navegador segue o modo do aparelho. *@
+    <meta name="theme-color" content="#EDECE7" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0B3C3F" media="(prefers-color-scheme: dark)" />
+    <meta name="application-name" content="UMURA" />
+    <meta name="apple-mobile-web-app-title" content="UMURA" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    @* black, nunca black-translucent: com o mapa em tela cheia o conteúdo passaria por baixo da barra de status. *@
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    @* PWA: o manifesto é arquivo estático (wwwroot/manifest.webmanifest) e o service worker é registrado pelo pwa.js. *@
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+
+    @* tema.js SEM defer e antes da folha: aplica o modo escolhido antes da primeira pintura. *@
+    <script src="@Assets["js/tema.js"]"></script>
+    @* Os dois subsets latin que toda página usa; o resto o navegador busca quando um glifo pede.
+       crossorigin é obrigatório em preload de fonte mesmo na própria origem, senão baixa duas vezes. *@
+    <link rel="preload" as="font" type="font/woff2" crossorigin href="/fonts/readex-pro-latin.woff2" />
+    <link rel="preload" as="font" type="font/woff2" crossorigin href="/fonts/outfit-latin.woff2" />
     <link rel="stylesheet" href="@Assets["app.css"]" />
     <link rel="stylesheet" href="@Assets["Agenda_Shows.UI.styles.css"]" />
-    <ImportMap />
-    <link rel="icon" type="image/png" href="favicon.png" />
-    <HeadOutlet />
+    <ResourcePreloader />
+    <HeadOutlet @rendermode="ModoDoHead.Da(HttpContext)" />
 </head>
 
 <body>
+    <div id="um-progress" aria-hidden="true"></div>
     <Routes />
     <ReconnectModal />
+    @* GSAP (3.13, vendorizado) e o módulo de motion ANTES do blazor.web.js: o módulo registra o gancho do
+       enhancedload e o Blazor precisa achá-lo pronto (skill mypods-motion). *@
+    <script src="@Assets["js/vendor/gsap.min.js"]"></script>
+    <script src="@Assets["js/vendor/ScrollTrigger.min.js"]"></script>
+    <script src="@Assets["js/umura-motion.js"]"></script>
     <script src="@Assets["_framework/blazor.web.js"]"></script>
+    <script src="@Assets["js/nav-retract.js"]" defer></script>
+    <script src="@Assets["js/nav-progress.js"]" defer></script>
+    <script src="@Assets["js/img-loading.js"]" defer></script>
+    <script src="@Assets["js/clipboard.js"]" defer></script>
+    <script src="@Assets["js/share.js"]" defer></script>
+    <script src="@Assets["js/geoloc.js"]" defer></script>
+    @* Os mapas: o Leaflet (1.9.4) e o cluster (1.5.3) só são baixados pela página que tem mapa — os endereços vão no
+       próprio script, já com a impressão digital. *@
+    <script src="@Assets["js/mapa-alfinete.js"]" defer data-leaflet-js="@Assets["js/vendor/leaflet/leaflet.js"]" data-leaflet-css="@Assets["js/vendor/leaflet/leaflet.css"]"></script>
+    <script src="@Assets["js/mapa-eventos.js"]" defer
+            data-leaflet-js="@Assets["js/vendor/leaflet/leaflet.js"]" data-leaflet-css="@Assets["js/vendor/leaflet/leaflet.css"]"
+            data-cluster-js="@Assets["js/vendor/leaflet.markercluster/leaflet.markercluster.js"]"
+            data-cluster-css="@Assets["js/vendor/leaflet.markercluster/MarkerCluster.css"]"
+            data-cluster-css-default="@Assets["js/vendor/leaflet.markercluster/MarkerCluster.Default.css"]"></script>
+    <script src="@Assets["js/pwa.js"]" defer></script>
 </body>
 
 </html>
+
+@code {
+    [CascadingParameter] private HttpContext? HttpContext { get; set; }
+}
