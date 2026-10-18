@@ -8,4 +8,8 @@
     <RootNamespace />
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\Agenda_Shows.Services\Agenda_Shows.Services.csproj" />
+  </ItemGroup>
+
 </Project>
