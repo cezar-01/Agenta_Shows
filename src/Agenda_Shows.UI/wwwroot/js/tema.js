@@ -42,7 +42,28 @@
     document.addEventListener('click', function (e) {
         var b = e.target && e.target.closest ? e.target.closest('[data-um-tema]') : null;
         if (!b) return;
-        var novo = window.umTema.alternar();
-        b.setAttribute('aria-pressed', novo === 'dark' ? 'true' : 'false');
+        window.umTema.alternar();
+        marcaBotoes();
+    });
+
+    function marcaBotoes() {
+        var pressionado = atual() === 'dark' ? 'true' : 'false';
+        var botoes = document.querySelectorAll('[data-um-tema]');
+        for (var i = 0; i < botoes.length; i++) botoes[i].setAttribute('aria-pressed', pressionado);
+    }
+
+    function reaplica() {
+        var escolhido = lido();
+        if ((escolhido === 'light' || escolhido === 'dark') && raiz.getAttribute('data-theme') !== escolhido) aplica(escolhido);
+        marcaBotoes();
+    }
+
+    if (window.MutationObserver) {
+        new MutationObserver(reaplica).observe(raiz, { attributes: true, attributeFilter: ['data-theme'] });
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        reaplica();
+        if (window.Blazor && window.Blazor.addEventListener) window.Blazor.addEventListener('enhancedload', reaplica);
     });
 })();
