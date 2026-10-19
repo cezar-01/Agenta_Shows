@@ -20,6 +20,17 @@ Blazor Server (.NET 10) · EF Core 9 + MySQL 8 (Pomelo) · Leaflet + OpenStreetM
 
 Pela linha de comando: `dotnet run --project src/Agenda_Shows.UI --launch-profile http` · testes: `dotnet test src/Agenda_Shows.Tests`.
 
+## Deploy temporário gratuito para demonstração (Render)
+
+O repositório inclui `render.yaml` para criar um Web Service gratuito no Render a partir do Dockerfile de produção em `src/Dockerfile`. A compilação acontece no Render; não é necessário instalar Docker na máquina de desenvolvimento.
+
+1. Envie o `render.yaml` e as alterações desejadas para o GitHub.
+2. No [Render](https://dashboard.render.com/), escolha **New → Blueprint**, conecte este repositório e confirme a criação do serviço `umura-shows-demo`.
+3. Na configuração inicial, informe um valor para `Demo__Senha`. Esse valor é solicitado pelo Render e não fica no repositório; ele será a senha das contas de demonstração listadas abaixo.
+4. Aguarde o primeiro deploy e abra a URL `onrender.com` do serviço. No plano gratuito, o primeiro acesso depois de 15 minutos sem tráfego pode levar cerca de um minuto para acordar.
+
+**Limitações do plano gratuito:** o serviço usa SQLite em armazenamento temporário. O Render apaga esse banco ao reiniciar, dormir ou fazer novo deploy; ao subir de novo, os dados iniciais de demonstração são semeados novamente. Contas criadas, compras e alterações feitas durante o teste não são persistentes. É adequado para uma apresentação, não para produção ou dados reais.
+
 ### Configuração que está funcionando (conferida em 18/10/2026)
 
 | Peça | Como está |
