@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: umura-shows-demo
+    runtime: docker
+    plan: free
+    dockerfilePath: ./src/Dockerfile
+    dockerContext: ./src
+    healthCheckPath: /health/ready
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: ConnectionStrings__DefaultConnection
+        value: Data Source=/tmp/umura-demo.db
+      - key: Demo__Semear
+        value: "true"
+      - key: Demo__DatasRolantes
+        value: "true"
+      - key: Demo__Senha
+        sync: false
+      - key: App__PublicBaseUrl
+        fromService:
+          type: web
+          name: umura-shows-demo
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: App__Contato
+        value: https://github.com/cezar-01/Agenta_Shows
