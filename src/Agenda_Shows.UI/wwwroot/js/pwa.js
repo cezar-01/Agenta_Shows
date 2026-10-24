@@ -18,6 +18,33 @@
         } catch (e) { return false; }
     }
 
+    async function verificarInstalado() {
+    if (jaInstalado()) return true;
+
+    try {
+        if (typeof navigator.getInstalledRelatedApps !== "function") {
+            return false;
+        }
+
+        const apps = await navigator.getInstalledRelatedApps();
+
+        const umuraInstalada = apps.some(app =>
+            app.platform === "webapp" &&
+            typeof app.url === "string" &&
+            new URL(app.url, window.location.origin).pathname
+                .endsWith("/manifest.webmanifest")
+        );
+
+        if (umuraInstalada) {
+            instalado = true;
+        }
+
+        return umuraInstalada;
+    } catch {
+        return false;
+    }
+    }
+
     try {
         window.addEventListener('beforeinstallprompt', function (ev) {
             ev.preventDefault();
@@ -41,6 +68,7 @@
         // Verdadeiro só quando o navegador OFERECEU o prompt e o site ainda não está instalado.
         podeInstalar: function () { return adiado !== null && !jaInstalado(); },
         instalado: jaInstalado,
+        verificarInstalado: verificarInstalado,
         // iPhone/iPad (inclusive o iPad que se diz Mac): lá a instalação é manual, pelo Compartilhar do Safari.
         ehIos: function () {
             try {
