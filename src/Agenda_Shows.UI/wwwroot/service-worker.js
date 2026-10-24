@@ -6,7 +6,7 @@
 //
 // ⚠️ Blazor Server: NUNCA interceptar /_blazor (o circuito), /_framework nem documento HTML — página cacheada é tela
 // zumbi com o circuito morto. E nada de /api: os tiles do mapa moram lá e são privados (a URL diz que região alguém olhou).
-const CACHE = 'umura-v2'; // v2: fotos trocadas pelas ilustrações (o cache das imagens velhas sai no activate)
+const CACHE = 'umura-v3'; // v3: convite de instalar o PWA no topo da Home
 const PRECACHE = [
   '/offline.html',
   '/js/offline.js',
