@@ -43,6 +43,11 @@
         .um-convite { grid-template-columns: 56px 1fr auto; }
         .um-convite .um-btn { grid-column: auto; }
     }
+    /* App instalado (iOS "Adicionar à Tela de Início" e Android/Chrome): o navegador decide, desde a primeira pintura —
+       sem esperar o circuito do Blazor conectar, então o card não pisca ao abrir nem ao voltar para a Home. */
+    @@media (display-mode: standalone), (display-mode: fullscreen), (display-mode: minimal-ui) {
+        .um-convite-sec { display: none; }
+    }
 </style>
 
 @code {

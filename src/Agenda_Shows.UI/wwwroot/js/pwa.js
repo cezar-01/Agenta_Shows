@@ -13,8 +13,15 @@
     function jaInstalado() {
         try {
             return instalado
+                // iOS/Safari (atalho da Tela de Início): propriedade própria do WebKit.
                 || window.navigator.standalone === true
-                || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+                // Android/Chrome e iOS recente: o modo de exibição do app. O Android pode cair em fullscreen/minimal-ui
+                // quando o manifesto pede e o aparelho não tem standalone.
+                || (window.matchMedia && (window.matchMedia('(display-mode: standalone)').matches
+                    || window.matchMedia('(display-mode: fullscreen)').matches
+                    || window.matchMedia('(display-mode: minimal-ui)').matches))
+                // Android aberto por um app empacotado (TWA): o referrer vem como android-app://.
+                || (document.referrer || '').indexOf('android-app://') === 0;
         } catch (e) { return false; }
     }
 
