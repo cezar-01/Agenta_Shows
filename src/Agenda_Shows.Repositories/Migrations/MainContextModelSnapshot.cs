@@ -25,19 +25,19 @@ namespace Migrations
             modelBuilder.Entity("Agenda_Shows.Entities.Categoria", b =>
                 {
                     b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
+                        .ValueGeneratedOnAdd() 
                         .HasColumnType("int");
 
                     MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<string>("Descricao")
+                    b.Property<string>("Descricao") 
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("varchar(200)");
+                        .HasColumnType("varchar(200)"); 
 
-                    b.Property<string>("ImagemUrl")
+                    b.Property<string>("ImagemUrl") 
                         .IsRequired()
-                        .HasMaxLength(200)
+                        .HasMaxLength(200) 
                         .HasColumnType("varchar(200)");
 
                     b.Property<string>("Nome")
@@ -51,12 +51,12 @@ namespace Migrations
                     b.Property<string>("Slug")
                         .IsRequired()
                         .HasMaxLength(40)
-                        .HasColumnType("varchar(40)");
-
+                        .HasColumnType("varchar(40)"); 
+                      
                     b.HasKey("Id");
-
+                     
                     b.HasIndex("Slug")
-                        .IsUnique();
+                        .IsUnique(); 
 
                     b.ToTable("Categorias");
                 });
