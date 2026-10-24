@@ -15,14 +15,14 @@ namespace Agenda_Shows.UI.Auth;
 /// <remarks>Defesa em profundidade: as ações que mudam dados também conferem o papel no banco (PapelNoBanco, no serviço).</remarks>
 public sealed class RevalidacaoDoPapel(ILoggerFactory logs, IServiceScopeFactory escopos) : RevalidatingServerAuthenticationStateProvider(logs)
 {
-    protected override TimeSpan RevalidationInterval => TimeSpan.FromMinutes(1);
+    protected override TimeSpan RevalidationInterval => TimeSpan.FromMinutes(1); 
 
     protected override async Task<bool> ValidateAuthenticationStateAsync(AuthenticationState estado, CancellationToken ct)
     {
         var user = estado.User;
-        if (Autorizacao.UsuarioId(user) is not { } id) return true; // visitante: nada a reconferir
-        await using var escopo = escopos.CreateAsyncScope();
-        var u = await escopo.ServiceProvider.GetRequiredService<IContas>().ObterAsync(id, ct);
-        return u is not null && user.IsInRole(Sessao.NomeDoPapel(u.Papel));
+        if (Autorizacao.UsuarioId(user) is not { } id) return true;
+        await using var escopo = escopos.CreateAsyncScope(); 
+        var u = await escopo.ServiceProvider.GetRequiredService<IContas>().ObterAsync(id, ct); 
+        return u is not null && user.IsInRole(Sessao.NomeDoPapel(u.Papel)); 
     }
 }
