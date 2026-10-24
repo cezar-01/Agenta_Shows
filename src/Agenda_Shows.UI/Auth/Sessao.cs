@@ -13,18 +13,18 @@ namespace Agenda_Shows.UI.Auth;
 /// </summary>
 public static class Sessao
 {
-    public const string NomeDoCookie = "Umura.Sessao";
-    public const string ClaimConferidoEm = "papel_conferido_em";
-    public static readonly TimeSpan ConferirPapelACada = TimeSpan.FromMinutes(2);
+    public const string NomeDoCookie = "Umura.Sessao"; 
+    public const string ClaimConferidoEm = "papel_conferido_em"; 
+    public static readonly TimeSpan ConferirPapelACada = TimeSpan.FromMinutes(2); 
 
-    public static string NomeDoPapel(Papel p) => p switch
+    public static string NomeDoPapel(Papel p) => p switch 
     {
         Papel.Admin => Papeis.Admin,
         Papel.Organizador => Papeis.Organizador,
         _ => Papeis.Usuario,
     };
 
-    public static ClaimsPrincipal Principal(UsuarioDto u, DateTime agoraUtc)
+    public static ClaimsPrincipal Principal(UsuarioDto u, DateTime agoraUtc) 
     {
         var claims = new List<Claim>
         {
@@ -44,17 +44,17 @@ public static class Sessao
     /// <summary>
     /// O evento do cookie que reconfere o papel. Conta apagada = sessão derrubada. Abrir página e abrir o circuito do
     /// Blazor reconferem SEMPRE (<see cref="ConferirAgora"/>); o resto usa a conferência de até 2 min.
-    /// </summary>
+    /// </summary> 
     public static async Task ValidarAsync(CookieValidatePrincipalContext ctx)
     {
         var p = ctx.Principal;
         if (p is null) return;
-        var agora = DateTime.UtcNow;
+        var agora = DateTime.UtcNow; 
         var fresco = long.TryParse(p.FindFirst(ClaimConferidoEm)?.Value, out var ticks)
                      && agora - new DateTime(ticks, DateTimeKind.Utc) < ConferirPapelACada;
         if (fresco && !ConferirAgora(ctx.HttpContext.Request)) return;
 
-        var id = Autorizacao.UsuarioId(p);
+        var id = Autorizacao.UsuarioId(p); 
         var contas = ctx.HttpContext.RequestServices.GetRequiredService<IContas>();
         var u = id is null ? null : await contas.ObterAsync(id.Value, ctx.HttpContext.RequestAborted);
         if (u is null)
@@ -65,7 +65,7 @@ public static class Sessao
         }
         // Conferiu e nada mudou: não reemite o cookie a cada página.
         if (fresco && p.IsInRole(NomeDoPapel(u.Papel)) && p.Identity?.Name == u.Nome) return;
-        ctx.ReplacePrincipal(Principal(u, agora));
+        ctx.ReplacePrincipal(Principal(u, agora)); 
         ctx.ShouldRenew = true;
     }
 
@@ -83,7 +83,7 @@ public static class Sessao
     /// O returnUrl só pode ser um caminho deste site: recusa "//", "/\", "\" e caractere de controle (o navegador apaga
     /// TAB e quebra de linha da URL, então "/\t/atacante" virava "//atacante" — open redirect pego no MyPods).
     /// </summary>
-    public static string VoltaSegura(string? returnUrl)
+    public static string VoltaSegura(string? returnUrl) 
     {
         if (string.IsNullOrWhiteSpace(returnUrl)) return "/";
         if (returnUrl.Any(char.IsControl)) return "/";

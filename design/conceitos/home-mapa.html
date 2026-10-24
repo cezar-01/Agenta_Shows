@@ -18,7 +18,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300..800&family=Readex+Pro:wght@300..700&display=swap" rel="stylesheet">
 <script>
 /* tema antes do primeiro paint (sem flash) + gate do motion */
-(function () {
+(function () { 
   var r = document.documentElement, q = location.search;
   try { var t = localStorage.getItem("um-tema"); if (t === "light" || t === "dark") r.setAttribute("data-theme", t); } catch (e) {}
   var m = /[?&]tema=(claro|escuro)/.exec(q); if (m) r.setAttribute("data-theme", m[1] === "escuro" ? "dark" : "light");
@@ -27,7 +27,7 @@
     setTimeout(function () { if (!window.gsap) r.classList.remove("um-motion"); }, 2500);
   }
 })();
-</script>
+</script> 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.13.0/gsap.min.js" onerror="document.documentElement.classList.remove('um-motion')"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.13.0/ScrollTrigger.min.js"></script>
 <!-- HEAD:FIM -->
@@ -35,8 +35,8 @@
 <style>
 /* ==== BASE:INICIO ==== */
 /* ============ TOKENS — claro (padrão) ============ */
-:root{
-  color-scheme: light;
+:root{ 
+  color-scheme: light; 
   /* paleta oficial (PDF) — use os papéis abaixo, não estas constantes */
   --um-deep-green:#0B3C3F; --um-worker-green:#6E6F5E; --um-premium-grey:#282828;
   --um-off-white:#EDECE7; --um-coral:#FF5A3C;
@@ -71,25 +71,25 @@
 
   --um-radius-sm:8px; --um-radius:14px; --um-radius-lg:20px; --um-radius-pill:999px;
   /* no claro a sombra LÊ (oposto do dark do MyPods): suave + borda */
-  --um-shadow-sm:0 1px 2px rgba(40,40,40,.06),0 2px 6px rgba(40,40,40,.05);
-  --um-shadow:0 2px 4px rgba(40,40,40,.05),0 8px 24px rgba(40,40,40,.10);
-  --um-shadow-lg:0 4px 10px rgba(40,40,40,.06),0 18px 48px rgba(40,40,40,.16);
+  --um-shadow-sm:0 1px 2px rgba(40,40,40,.06),0 2px 6px rgba(40,40,40,.05); 
+  --um-shadow:0 2px 4px rgba(40,40,40,.05),0 8px 24px rgba(40,40,40,.10); 
+  --um-shadow-lg:0 4px 10px rgba(40,40,40,.06),0 18px 48px rgba(40,40,40,.16); 
 
   --um-display:'Coco Gothic','Outfit',system-ui,sans-serif;
   --um-font:'Readex Pro',system-ui,-apple-system,'Segoe UI',sans-serif;
   --um-mono:ui-monospace,'Cascadia Mono',Consolas,monospace;
 
-  --um-container:1280px; --um-header:60px; --um-nav-h:64px;
-  --um-gutter:clamp(1rem,4vw,1.5rem); --um-sec-pad:clamp(2rem,6vw,4rem); --um-tap:44px;
-  --um-ease-sheet:cubic-bezier(.32,.72,0,1);
-  --um-z-sticky:10; --um-z-drawer:49; --um-z-header:50; --um-z-fab:55; --um-z-sheet:60;
-  --um-z-dropdown:300; --um-z-float:940; --um-z-consent:1000; --um-z-critical:1100;
-}
+  --um-container:1280px; --um-header:60px; --um-nav-h:64px; 
+  --um-gutter:clamp(1rem,4vw,1.5rem); --um-sec-pad:clamp(2rem,6vw,4rem); --um-tap:44px; 
+  --um-ease-sheet:cubic-bezier(.32,.72,0,1); 
+  --um-z-sticky:10; --um-z-drawer:49; --um-z-header:50; --um-z-fab:55; --um-z-sheet:60; 
+  --um-z-dropdown:300; --um-z-float:940; --um-z-consent:1000; --um-z-critical:1100; 
+} 
 @media (min-width:1024px){ :root{ --um-header:72px; } }
 
 /* ============ TOKENS — escuro (prefers-color-scheme OU data-theme="dark") ============ */
 @media (prefers-color-scheme:dark){
-  :root:not([data-theme="light"]){
+  :root:not([data-theme="light"]){ 
     color-scheme: dark;
     --um-bg:#0B3C3F; --um-surface:#0F4A4D; --um-surface-2:#15575A; --um-border:#1E6366; --um-border-soft:#15575A;
     --um-ink:#EDECE7; --um-ink-soft:#D6D5CF; --um-ink-muted:#A9B3A6;
@@ -117,7 +117,7 @@
   --um-success:#6FD39A; --um-success-bg:rgba(111,211,154,.14); --um-success-ink:#8FE0B2;
   --um-warning:#E9C46A; --um-warning-bg:rgba(233,196,106,.14); --um-warning-ink:#F0D58E;
   --um-danger:#FF8A7A;  --um-danger-bg:rgba(255,138,122,.14);  --um-danger-ink:#FFA597;
-  --um-info:#8CC3EA;    --um-info-bg:rgba(140,195,234,.14);    --um-info-ink:#A8D3F0;
+  --um-info:#8CC3EA;    --um-info-bg:rgba(140,195,234,.14);    --um-info-ink:#A8D3F0; 
   --um-focus:#EDECE7; --um-overlay:rgba(3,22,24,.62);
   --um-skel:#15575A; --um-skel-hi:#1E6366; --um-media-filter:brightness(.9) saturate(.95);
   --um-map-land:#0D4245; --um-map-street:#124D50; --um-map-road:#1A5D60; --um-map-road-edge:#0A3537;
@@ -129,17 +129,17 @@
 
 /* ============ BASE ============ */
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-html{scroll-behavior:auto;-webkit-text-size-adjust:100%;text-size-adjust:100%}
+html{scroll-behavior:auto;-webkit-text-size-adjust:100%;text-size-adjust:100%} 
 body{
   min-height:100vh;background:var(--um-bg);color:var(--um-ink-soft);
   font-family:var(--um-font);font-size:16px;line-height:1.55;font-weight:400;
   -webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent;
-}
+} 
 h1,h2,h3,h4{font-family:var(--um-display);color:var(--um-ink);font-weight:600;line-height:1.12;letter-spacing:0}
 h1{font-size:clamp(2rem,4vw,2.75rem)}
 h2{font-size:clamp(1.5rem,3vw,2rem)}
 h3{font-size:1.2rem}
-p{max-width:68ch}
+p{max-width:68ch} 
 a{color:var(--um-brand);text-decoration:underline;text-underline-offset:3px;transition:color .15s ease}
 img,svg{display:block}
 button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
@@ -150,7 +150,7 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .um-icon{width:20px;height:20px;flex:none;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
 
 /* ============ LAYOUT ============ */
-.um-container{max-width:var(--um-container);margin-inline:auto;padding-inline:var(--um-gutter)}
+.um-container{max-width:var(--um-container);margin-inline:auto;padding-inline:var(--um-gutter)} 
 .um-section{padding-block:var(--um-sec-pad)}
 /* eyebrow: texto Deep Green + traço coral de 3px (coral como LINHA, nunca como texto) */
 .um-eyebrow{display:inline-flex;align-items:center;gap:.6rem;font:600 12px/1.2 var(--um-font);letter-spacing:.16em;text-transform:uppercase;color:var(--um-brand)}
