@@ -58,7 +58,7 @@
         fim = new CancellationTokenSource();
         try
         {
-            if (await JS.InvokeAsync<bool>("umPwa.instalado")) { modo = Modo.Escondido; StateHasChanged(); return; }
+            if (await JS.InvokeAsync<bool>("umPwa.verificarInstalado")) { modo = Modo.Escondido; StateHasChanged(); return; }
             if (await JS.InvokeAsync<bool>("umPwa.ehIos")) { modo = Modo.Ios; StateHasChanged(); return; }
         }
         catch (Exception e) when (e is JSException or JSDisconnectedException or TaskCanceledException or InvalidOperationException)
