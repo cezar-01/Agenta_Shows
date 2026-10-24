@@ -1,12 +1,12 @@
-﻿@page "/"
+@page "/"
 @using Microsoft.Extensions.Logging
 @inject ICatalogo Catalogo
 @inject TimeProvider Relogio
 @inject ILogger<Home> Log
 
-@* A vitrine "estilo iFood": busca no topo, as bolinhas dos nichos, e os trilhos (ao vivo, hoje, destaques, grátis, fim de
-   semana, um por nicho). SSR estático: abre rápido e o Google lê. Nada aqui é interativo — o que precisa de circuito
-   (instalar o app) vem como ilha no fim. *@
+@* A vitrine "estilo iFood": busca no topo, o convite de instalar o PWA, as bolinhas dos nichos, e os trilhos (ao vivo,
+   hoje, destaques, grátis, fim de semana, um por nicho). SSR estático: abre rápido e o Google lê. Nada aqui é interativo —
+   o que precisa de circuito (instalar o app) entra como ilha. *@
 
 <PageTitle>Eventos em Curitiba · UMURA</PageTitle>
 <HeadContent>
@@ -31,6 +31,9 @@
             </div>
         </form>
     </header>
+
+    @* Ilha interativa do convite de instalar o PWA logo no topo da vitrine. *@
+    <ConviteInstalar />
 
     @if (falhou)
     {
@@ -127,9 +130,6 @@
         }
     }
 </div>
-
-@* Ilha do integrador (já declara o próprio @rendermode e o próprio um-container). *@
-<ConviteInstalar />
 
 <style>
     .um-home { padding-block: 0.75rem 2.5rem; }
