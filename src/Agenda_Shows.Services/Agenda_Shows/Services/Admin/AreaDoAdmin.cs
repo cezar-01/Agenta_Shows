@@ -3,6 +3,7 @@ using Agenda_Shows.Contexts;
 using Agenda_Shows.Entities;
 using Agenda_Shows.Services.Auth;
 using Agenda_Shows.Services.Contas;
+using Agenda_Shows.Services.Demo;
 using Agenda_Shows.Services.Organizador;
 using Agenda_Shows.Services.Pedidos;
 using Microsoft.EntityFrameworkCore;
@@ -10,7 +11,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Agenda_Shows.Services.Admin;
 
 public sealed record PainelDoAdmin(int Usuarios, int Organizadores, int Admins, int EventosPublicados, int EventosAoVivo,
-    int IngressosVendidos, int ReceitaCentavos, int PedidosAguardando, IReadOnlyList<LinhaDoMeuEvento> MaisVendidos,
+    int IngressosVendidos, long ReceitaCentavos, int PedidosAguardando, IReadOnlyList<LinhaDoMeuEvento> MaisVendidos,
     IReadOnlyList<(string Nicho, int Vendidos)> VendasPorNicho);
 
 public interface IAreaDoAdmin
@@ -19,16 +20,22 @@ public interface IAreaDoAdmin
     Task<IReadOnlyList<LinhaDoMeuEvento>> EventosAsync(ClaimsPrincipal quem, string? busca, CancellationToken ct = default);
     Task<Resultado<bool>> AlternarDestaqueAsync(ClaimsPrincipal quem, int eventoId, CancellationToken ct = default);
     Task<IReadOnlyList<PedidoDto>> PedidosAsync(ClaimsPrincipal quem, string? busca, CancellationToken ct = default);
+    Task AtualizarDatasDaDemoAsync(ClaimsPrincipal quem, CancellationToken ct = default);
 }
 
-/// <summary>A visão de tudo — e só para o admin: cada método começa pelo <see cref="Autorizacao.EnsureAdmin"/>.</summary>
-public sealed class AreaDoAdmin(IDbContextFactory<MainContext> fabrica, TimeProvider relogio) : IAreaDoAdmin
+/// <summary>
+/// A visão de tudo — e só para o admin: cada método começa pelo <see cref="Autorizacao.EnsureAdmin"/> (claim, falha rápido)
+/// e confirma no banco (<see cref="PapelNoBanco"/>): a lista tem e-mail de todo mundo, e a aba aberta de quem foi rebaixado
+/// não pode continuar lendo.
+/// </summary>
+public sealed class AreaDoAdmin(IDbContextFactory<MainContext> fabrica, TimeProvider relogio, Semeadura semeadura) : IAreaDoAdmin
 {
     public async Task<PainelDoAdmin> PainelAsync(ClaimsPrincipal quem, CancellationToken ct = default)
     {
         Autorizacao.EnsureAdmin(quem);
         var agora = relogio.GetUtcNow().UtcDateTime;
         await using var db = await fabrica.CreateDbContextAsync(ct);
+        await PapelNoBanco.EnsureAdminAsync(db, quem, ct);
 
         var papeis = await db.Usuarios.GroupBy(u => u.Papel).Select(g => new { g.Key, N = g.Count() }).ToListAsync(ct);
         int Conta(Papel p) => papeis.FirstOrDefault(x => x.Key == p)?.N ?? 0;
@@ -37,7 +44,8 @@ public sealed class AreaDoAdmin(IDbContextFactory<MainContext> fabrica, TimeProv
         var aoVivo = await db.Eventos.CountAsync(e => e.Status == StatusDoEvento.Publicado && e.InicioUtc <= agora && e.FimUtc > agora, ct);
         var pagos = db.Pedidos.Where(p => p.Status == StatusDoPedido.Pago);
         var vendidos = await pagos.SelectMany(p => p.Itens).SumAsync(i => (int?)i.Quantidade, ct) ?? 0;
-        var receita = await pagos.SumAsync(p => (int?)p.TotalCentavos, ct) ?? 0;
+        // Em long: a receita (simulada) soma muitos pedidos de até R$ 50 mil cada — em int estourava e derrubava o painel.
+        var receita = await pagos.SumAsync(p => (long?)p.TotalCentavos, ct) ?? 0;
         var aguardando = await db.Pedidos.CountAsync(p => p.Status == StatusDoPedido.AguardandoPagamento, ct);
 
         // Ordena ANTES de projetar: o EF não traduz ordenação por membro de um DTO montado no Select.
@@ -57,6 +65,7 @@ public sealed class AreaDoAdmin(IDbContextFactory<MainContext> fabrica, TimeProv
     {
         Autorizacao.EnsureAdmin(quem);
         await using var db = await fabrica.CreateDbContextAsync(ct);
+        await PapelNoBanco.EnsureAdminAsync(db, quem, ct);
         var q = db.Eventos.AsNoTracking();
         if (!string.IsNullOrWhiteSpace(busca))
         {
@@ -83,6 +92,7 @@ public sealed class AreaDoAdmin(IDbContextFactory<MainContext> fabrica, TimeProv
     {
         Autorizacao.EnsureAdmin(quem);
         await using var db = await fabrica.CreateDbContextAsync(ct);
+        await PapelNoBanco.EnsureAdminAsync(db, quem, ct);
         var q = db.Pedidos.AsNoTracking();
         if (!string.IsNullOrWhiteSpace(busca))
         {
@@ -90,5 +100,17 @@ public sealed class AreaDoAdmin(IDbContextFactory<MainContext> fabrica, TimeProv
             q = q.Where(p => p.Codigo.Contains(t) || p.Usuario!.Nome.Contains(t) || p.Usuario.Email.Contains(t) || p.Evento!.Titulo.Contains(t));
         }
         return await Pedidos.Pedidos.Projetar(q.OrderByDescending(p => p.CriadoEmUtc)).Take(200).ToListAsync(ct);
+    }
+
+    /// <summary>
+    /// "Trazer as datas da demo para hoje" (botão do painel). A <see cref="Semeadura"/> não confere papel — é do boot —, então
+    /// o portão é aqui, com o papel do banco: um admin rebaixado com o painel aberto não mexe mais nas datas.
+    /// </summary>
+    public async Task AtualizarDatasDaDemoAsync(ClaimsPrincipal quem, CancellationToken ct = default)
+    {
+        Autorizacao.EnsureAdmin(quem);
+        await using (var db = await fabrica.CreateDbContextAsync(ct))
+            await PapelNoBanco.EnsureAdminAsync(db, quem, ct);
+        await semeadura.AtualizarDatasAsync(ct);
     }
 }

@@ -5,6 +5,7 @@
 @inject IAreaDoOrganizador Area
 @inject TimeProvider Relogio
 @inject ILogger<Painel> Log
+<SessaoViva />
 
 @* O painel do organizador: KPIs, vendas dos últimos 14 dias e a lista dos eventos. O serviço filtra pelo dono — o
    organizador só vê o que é dele; o admin vê tudo (e a faixa avisa). *@
@@ -330,7 +331,7 @@
     private static string Num(int n) => n.ToString("N0", PtBr);
 
     /// <summary>O alvo do contador em reais com ponto decimal (o JS lê com parseFloat).</summary>
-    private static string ReaisInvariante(int centavos) => (centavos / 100m).ToString("0.00", CultureInfo.InvariantCulture);
+    private static string ReaisInvariante(long centavos) => (centavos / 100m).ToString("0.00", CultureInfo.InvariantCulture);
 }
 
 <style>

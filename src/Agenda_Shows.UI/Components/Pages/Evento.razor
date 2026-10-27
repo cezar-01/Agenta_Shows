@@ -3,6 +3,7 @@
 @using Microsoft.Extensions.Logging
 @inject ICatalogo Catalogo
 @inject IAnalitica Analitica
+@inject Agenda_Shows.UI.Net.ClientIpResolver Ip
 @inject TimeProvider Relogio
 @inject NavigationManager Nav
 @inject ILogger<Evento> Log
@@ -238,6 +239,7 @@ else if (detalhe is { } d)
     [Parameter] public string Slug { get; set; } = string.Empty;
 
     [CascadingParameter] private Task<AuthenticationState>? Estado { get; set; }
+    [CascadingParameter] private HttpContext? HttpContext { get; set; }
 
     private static readonly string[] Semana = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
@@ -285,8 +287,19 @@ else if (detalhe is { } d)
         // SSR estático: este método roda UMA vez por visita (não há prerender duplo). Quem organiza o evento e a equipe
         // não contam como público. O registro é fire-and-forget e nunca lança.
         if (usuarioId != detalhe.OrganizadorId && !Autorizacao.EhAdmin(user))
-            Analitica.RegistrarVisualizacao(detalhe.Card.Id);
+            Analitica.RegistrarVisualizacao(detalhe.Card.Id, Visitante(usuarioId),
+                rede: usuarioId is null && HttpContext is not null ? Ip.PartitionKey(HttpContext) : null);
     }
+
+    /// <summary>
+    /// Quem está vendo, para a mesma pessoa contar uma vez por janela: a conta, se entrou; senão o IP + o navegador — numa
+    /// rede compartilhada (a da faculdade, um NAT de operadora) o IP sozinho juntaria todo mundo numa visita só. Fica só na
+    /// memória do servidor; não vai para o banco.
+    /// </summary>
+    private string? Visitante(int? usuarioId) =>
+        usuarioId is { } id ? $"u:{id}"
+        : HttpContext is null ? null
+        : $"{Ip.PartitionKey(HttpContext)}|{(uint)HttpContext.Request.Headers.UserAgent.ToString().GetHashCode():x}";
 
     /// <summary>"Sáb, 24/10 · 20:00 até 23:00" — ou "até Dom, 25/10 · 02:00" quando vira o dia. Hora de Brasília.</summary>
     private static string QuandoCompleto(EventoCard c)

@@ -6,8 +6,9 @@ using Microsoft.EntityFrameworkCore;
 namespace Agenda_Shows.Services.Auth;
 
 /// <summary>
-/// O portão das AÇÕES que mudam dados (mudar papel, salvar/cancelar evento, validar ingresso, destacar): o papel vem do
-/// BANCO, não do claim. O claim é uma foto tirada quando o circuito do Blazor abriu — um admin rebaixado com a tela aberta
+/// O portão das AÇÕES que mudam dados (mudar papel, salvar/cancelar evento, validar ingresso, destacar) e das LEITURAS que
+/// só um papel pode ver (as listas do admin, com e-mail; os eventos e as vendas do organizador): o papel vem do BANCO, não do
+/// claim. O claim é uma foto tirada quando o circuito do Blazor abriu — um admin rebaixado com a tela aberta
 /// ainda o carrega até a revalidação do circuito (1 min). Aqui o rebaixamento vale no clique seguinte.
 /// </summary>
 /// <remarks>
@@ -16,6 +17,10 @@ namespace Agenda_Shows.Services.Auth;
 /// </remarks>
 internal static class PapelNoBanco
 {
+    /// <summary>Quem é e qual o papel AGORA, lido do banco. Conta apagada com a sessão aberta = como quem não entrou.</summary>
+    public static async Task<(int Id, Papel Papel)> PapelAsync(MainContext db, ClaimsPrincipal quem, CancellationToken ct) =>
+        await ConferirAsync(db, quem, ct);
+
     private static async Task<(int Id, Papel Papel)> ConferirAsync(MainContext db, ClaimsPrincipal quem, CancellationToken ct)
     {
         var id = Autorizacao.EnsureAuthenticated(quem);

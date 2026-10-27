@@ -22,10 +22,14 @@ public sealed class Semeadura(
     public const int PessoasDoPublico = 24;
 
     /// <param name="senhaDasContas">
-    /// A senha das contas de demonstração, lida dos user-secrets (<see cref="DadosDaDemo.ChaveDaSenha"/>). Nula: as
-    /// contas nascem com senha aleatória que ninguém conhece (os eventos precisam de organizador, mas ninguém entra).
+    /// A senha das contas de demonstração (organizadores e usuários), lida dos user-secrets (<see cref="DadosDaDemo.ChaveDaSenha"/>).
+    /// Nula: as contas nascem com senha aleatória que ninguém conhece (os eventos precisam de organizador, mas ninguém entra).
     /// </param>
-    public async Task SemearAsync(string? senhaDasContas, CancellationToken ct = default)
+    /// <param name="senhaDoAdmin">
+    /// A senha da conta admin (<see cref="DadosDaDemo.ChaveDaSenhaDoAdmin"/>), separada da senha compartilhável da demo. Nula:
+    /// o admin nasce com senha aleatória — ninguém entra nele.
+    /// </param>
+    public async Task SemearAsync(string? senhaDasContas, string? senhaDoAdmin = null, CancellationToken ct = default)
     {
         await using var db = await fabrica.CreateDbContextAsync(ct);
         var agora = relogio.GetUtcNow().UtcDateTime;
@@ -49,7 +53,8 @@ public sealed class Semeadura(
         {
             if (await db.Usuarios.AnyAsync(u => u.Email == c.Email, ct)) continue;
             var u = new Usuario { Email = c.Email, Nome = c.Nome, Papel = c.Papel, NomeDoOrganizador = c.NomeDoOrganizador, CriadoEmUtc = agora };
-            u.SenhaHash = hasher.HashPassword(u, semSenha ? Codigos.Novo(32) : senhaDasContas!);
+            var senha = c.Papel == Papel.Admin ? senhaDoAdmin : senhaDasContas;
+            u.SenhaHash = hasher.HashPassword(u, string.IsNullOrWhiteSpace(senha) ? Codigos.Novo(32) : senha);
             db.Usuarios.Add(u);
         }
         await db.SaveChangesAsync(ct);

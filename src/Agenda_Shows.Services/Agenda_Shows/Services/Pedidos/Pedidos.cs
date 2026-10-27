@@ -51,7 +51,11 @@ public sealed class Pedidos(IDbContextFactory<MainContext> fabrica, TimeProvider
     public const string CartaoAprovado = "4242424242424242";
     public const string CartaoRecusado = "4000000000000002";
     public const int MaximoPorPedido = 10;
-    /// <summary>Teto por pessoa no evento, somando os pedidos pagos e a reserva em aberto (sem ele, uma conta esvazia o lote).</summary>
+    /// <summary>
+    /// Teto por pessoa no evento, somando os pedidos pagos e a reserva em aberto (sem ele, uma conta esvazia o lote). É por
+    /// CONTA: quem cria contas em série passa por cima — limite aceito da demonstração (fechar exigiria confirmar o e-mail,
+    /// que a demo não envia), como o aviso de e-mail já cadastrado no cadastro.
+    /// </summary>
     public const int MaximoPorPessoa = 10;
     public static readonly TimeSpan PrazoParaPagar = TimeSpan.FromMinutes(15);
 
@@ -82,6 +86,9 @@ public sealed class Pedidos(IDbContextFactory<MainContext> fabrica, TimeProvider
         var estrategia = db.Database.CreateExecutionStrategy();
         return await estrategia.ExecuteAsync(async () =>
         {
+            // Retry do MySQL (deadlock, lock wait) roda esta lambda de novo NO MESMO contexto: sem limpar, o pedido da
+            // tentativa que falhou continua "Added" e seria gravado em dobro.
+            db.ChangeTracker.Clear();
             await using var tx = await db.Database.BeginTransactionAsync(ct);
 
             // Uma compra por vez para a mesma pessoa: o UPDATE vazio trava a linha da conta até o commit, então duas abas (ou
@@ -112,16 +119,23 @@ public sealed class Pedidos(IDbContextFactory<MainContext> fabrica, TimeProvider
                     : $"O máximo é {MaximoPorPessoa} ingressos por pessoa neste evento e você já tem {jaTem}: dá para pegar mais {resta}.");
             }
 
-            // Reserva com UPDATE condicional: se duas pessoas disputam o último ingresso, só uma linha é afetada.
-            foreach (var p in pedidas)
+            // Reserva com UPDATE condicional: se duas pessoas disputam o último ingresso, só uma linha é afetada. O evento é
+            // reconferido NO MESMO UPDATE (a leitura lá de cima foi antes da transação): se o organizador cancelou no meio do
+            // caminho, nenhum lote reserva — nem o grátis, que nasceria Pago com ingresso de evento cancelado. Ordem fixa
+            // por lote: duas compras de vários lotes travam na mesma ordem e não se cruzam em deadlock.
+            foreach (var p in pedidas.OrderBy(x => x.TipoDeIngressoId))
             {
                 var afetadas = await db.TiposDeIngresso
-                    .Where(t => t.Id == p.TipoDeIngressoId && t.Vendidos + p.Quantidade <= t.Quantidade)
+                    .Where(t => t.Id == p.TipoDeIngressoId && t.Vendidos + p.Quantidade <= t.Quantidade
+                                && db.Eventos.Any(e => e.Id == t.EventoId && e.Status == StatusDoEvento.Publicado && e.FimUtc > agora))
                     .ExecuteUpdateAsync(s => s.SetProperty(t => t.Vendidos, t => t.Vendidos + p.Quantidade), ct);
                 if (afetadas == 0)
                 {
                     await tx.RollbackAsync(ct);
-                    return Resultado<string>.Falha($"Não há mais \"{lotes[p.TipoDeIngressoId].Nome}\" suficientes. Escolha outra quantidade.");
+                    var aVenda = await db.Eventos.AnyAsync(e => e.Id == eventoId && e.Status == StatusDoEvento.Publicado && e.FimUtc > agora, ct);
+                    return Resultado<string>.Falha(aVenda
+                        ? $"Não há mais \"{lotes[p.TipoDeIngressoId].Nome}\" suficientes. Escolha outra quantidade."
+                        : "Este evento não está mais à venda.");
                 }
             }
 
@@ -151,9 +165,10 @@ public sealed class Pedidos(IDbContextFactory<MainContext> fabrica, TimeProvider
         var usuarioId = Autorizacao.EnsureAuthenticated(quem);
         await using var db = await fabrica.CreateDbContextAsync(ct);
         var q = db.Pedidos.AsNoTracking().Where(p => p.Codigo == codigo);
-        // Pedido é de quem comprou (ou do admin). Código de outra pessoa = "não encontrado", nunca "proibido":
-        // a resposta não confirma que o código existe.
-        if (!Autorizacao.EhAdmin(quem)) q = q.Where(p => p.UsuarioId == usuarioId);
+        // Pedido é de quem comprou (ou do admin — admin NO BANCO: o claim de uma aba antiga pode estar velho). Código de
+        // outra pessoa = "não encontrado", nunca "proibido": a resposta não confirma que o código existe.
+        var admin = Autorizacao.EhAdmin(quem) && (await PapelNoBanco.PapelAsync(db, quem, ct)).Papel == Papel.Admin;
+        if (!admin) q = q.Where(p => p.UsuarioId == usuarioId);
         return await Projetar(q).FirstOrDefaultAsync(ct);
     }
 
@@ -257,32 +272,54 @@ public sealed class Pedidos(IDbContextFactory<MainContext> fabrica, TimeProvider
         // passa — nunca fica um pedido pago com o lote já devolvido, nem ingresso pago de evento cancelado. E o clique duplo:
         // só um dos dois troca; o outro encontra Pago e responde o mesmo sucesso, sem emitir de novo.
         var estrategia = db.Database.CreateExecutionStrategy();
-        var pago = await estrategia.ExecuteAsync(async () =>
+        var desfecho = await estrategia.ExecuteAsync(async () =>
         {
+            db.ChangeTracker.Clear(); // retry no mesmo contexto: os ingressos da tentativa que falhou não podem ir em dobro
             await using var tx = await db.Database.BeginTransactionAsync(ct);
+            // O prazo vale na hora da TROCA, não do clique: o clique pode ter chegado no último segundo.
+            var naTroca = Agora;
+
+            // A mesma fila por pessoa da criação, e o teto de novo: um pedido pode ter nascido na outra aba enquanto este
+            // vencia (o vencido não conta como reserva em aberto) — pagar os dois daria o dobro do máximo.
+            await db.Usuarios.Where(u => u.Id == usuarioId)
+                .ExecuteUpdateAsync(s => s.SetProperty(u => u.CriadoEmUtc, u => u.CriadoEmUtc), ct);
+            var jaPagos = await db.ItensDoPedido
+                .Where(i => i.Pedido!.UsuarioId == usuarioId && i.Pedido.EventoId == pedido.EventoId && i.Pedido.Status == StatusDoPedido.Pago
+                            && i.PedidoId != pedido.Id)
+                .SumAsync(i => (int?)i.Quantidade, ct) ?? 0;
+            if (jaPagos + pedido.Itens.Sum(i => i.Quantidade) > MaximoPorPessoa)
+            {
+                await tx.RollbackAsync(ct);
+                return (Trocou: false, JaPagos: jaPagos);
+            }
+
             var trocou = await db.Pedidos
-                .Where(p => p.Id == pedido.Id && p.Status == StatusDoPedido.AguardandoPagamento && p.ExpiraEmUtc > agora
-                            && db.Eventos.Any(e => e.Id == p.EventoId && e.Status == StatusDoEvento.Publicado && e.FimUtc > agora))
+                .Where(p => p.Id == pedido.Id && p.Status == StatusDoPedido.AguardandoPagamento && p.ExpiraEmUtc > naTroca
+                            && db.Eventos.Any(e => e.Id == p.EventoId && e.Status == StatusDoEvento.Publicado && e.FimUtc > naTroca))
                 .ExecuteUpdateAsync(s => s
                     .SetProperty(p => p.Status, StatusDoPedido.Pago)
                     .SetProperty(p => p.Metodo, metodo)
-                    .SetProperty(p => p.PagoEmUtc, agora)
+                    .SetProperty(p => p.PagoEmUtc, naTroca)
                     .SetProperty(p => p.CartaoFinal, final), ct);
             if (trocou == 0)
             {
                 await tx.RollbackAsync(ct);
-                return false;
+                return (Trocou: false, JaPagos: -1);
             }
             foreach (var i in pedido.Itens)
                 for (var n = 0; n < i.Quantidade; n++)
                     db.Ingressos.Add(new Ingresso { PedidoId = pedido.Id, EventoId = pedido.EventoId, Codigo = Codigos.Novo(10), NomeDoTipo = i.NomeDoTipo });
             await db.SaveChangesAsync(ct);
             await tx.CommitAsync(ct);
-            return true;
+            return (Trocou: true, JaPagos: -1);
         });
 
-        if (!pago)
+        if (!desfecho.Trocou && desfecho.JaPagos >= 0)
+            return Resultado<PedidoDto>.Falha($"Você já tem {desfecho.JaPagos} ingressos pagos para este evento: com este pedido passaria " +
+                                              $"do máximo de {MaximoPorPessoa} por pessoa. Cancele este pedido ou escolha menos ingressos.");
+        if (!desfecho.Trocou)
         {
+            agora = Agora;
             var s = await db.Pedidos.AsNoTracking().Where(p => p.Id == pedido.Id)
                 .Select(p => new { p.Status, p.ExpiraEmUtc, EventoStatus = p.Evento!.Status, EventoFim = p.Evento.FimUtc }).FirstAsync(ct);
             if (s.Status != StatusDoPedido.Pago)

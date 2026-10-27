@@ -19,6 +19,16 @@ public sealed class OpcoesDosTiles
     /// <summary>A pasta do cache em disco; vazia = a temporária do sistema (some no deploy, e o cache se refaz).</summary>
     public string? Pasta { get; set; }
 
+    /// <summary>
+    /// O teto do cache em disco, em MB. Passou, os tiles novos vão para quem pediu mas não são gravados — no Render a pasta
+    /// temporária é o mesmo disco do banco SQLite, e raspagem não pode enchê-lo.
+    /// </summary>
+    public int MaxMegasNoDisco { get; set; } = 512;
+
+    /// <summary>Quantos tiles AINDA NÃO GUARDADOS cada IP pode pedir por minuto (os do cache não contam): é o que vai ao OSM.
+    /// Abaixo da reposição do orçamento global (180/min, <see cref="LimiteDeBuscasDeTiles"/>): um IP sozinho não o esvazia.</summary>
+    public int BuscasNovasPorMinutoPorIp { get; set; } = 120;
+
     /// <summary>O endereço público do site: vai no User-Agent e no Referer. Vazio, o Program.cs usa o <c>App:PublicBaseUrl</c>.</summary>
     public string? Site { get; set; }
 
@@ -66,8 +76,17 @@ public sealed class TilesDoMapa
     /// <summary>O teto de um tile: um PNG de mapa tem dezenas de KB; maior que isto não é tile.</summary>
     public const int MaxBytesDoTile = 1_000_000;
 
-    // O Brasil, com folga (Noronha dentro): o tile fora daqui não é mapa de loja nenhuma, e o site não vira proxy do mundo.
-    private const double LatSul = -34.5, LatNorte = 6, LngOeste = -74.5, LngLeste = -32;
+    /// <summary>
+    /// Quantos pedidos podem esperar a vez de buscar no servidor de tiles; passou disso, leva a cópia velha (ou nada). Folgado
+    /// de propósito: o primeiro mapa de um desktop com o cache vazio pede uns 45 tiles de uma vez. Quem segura a raspagem é a
+    /// caixa de Curitiba e o <see cref="LimiteDeBuscasDeTiles"/> (por IP e global); a fila só impede a espera sem fim.
+    /// </summary>
+    public const int MaxNaFila = 256;
+
+    // Curitiba e região: a caixa do mapa no navegador (LIMITES em mapa-eventos.js: -26,45/-50,25 a -24,65/-48,45) com meio
+    // grau de folga para o arrasto além da borda. O site é de Curitiba — aceitar o Brasil inteiro até o zoom 19 deixava
+    // qualquer um pedir bilhões de tiles nunca vistos, encher a fila e o disco e fazer o site baixar em massa do OSM.
+    private const double LatSul = -27.0, LatNorte = -24.1, LngOeste = -50.8, LngLeste = -47.9;
 
     private static ReadOnlySpan<byte> AssinaturaPng => [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
 
@@ -79,6 +98,7 @@ public sealed class TilesDoMapa
     private readonly SemaphoreSlim buscas = new(MaxBuscasSimultaneas, MaxBuscasSimultaneas);
     private readonly ConcurrentDictionary<string, Lazy<Task<byte[]?>>> emVoo = new(StringComparer.Ordinal);
     private long pausaAte;
+    private int naFila;
 
     public TilesDoMapa(IHttpClientFactory http, IOptions<OpcoesDosTiles> opcoes, ILogger<TilesDoMapa>? logger = null,
         Func<DateTime>? agoraUtc = null)
@@ -100,7 +120,7 @@ public sealed class TilesDoMapa
         return partes.Count == 0 ? "UMURA/1.0" : $"UMURA/1.0 ({string.Join("; ", partes)})";
     }
 
-    /// <summary>O tile existe, no zoom que o mapa usa, e cobre um pedaço do Brasil.</summary>
+    /// <summary>O tile existe, no zoom que o mapa usa, e cobre um pedaço de Curitiba e região.</summary>
     public static bool Valido(int z, int x, int y)
     {
         if (z < ZoomMinimo || z > ZoomMaximo) return false;
@@ -122,8 +142,7 @@ public sealed class TilesDoMapa
     public async Task<byte[]?> ObterAsync(int z, int x, int y, CancellationToken ct = default)
     {
         if (!Valido(z, x, y)) return null;
-        var arquivo = Path.Combine(pasta, z.ToString(CultureInfo.InvariantCulture), x.ToString(CultureInfo.InvariantCulture),
-            y.ToString(CultureInfo.InvariantCulture) + ".png");
+        var arquivo = Arquivo(z, x, y);
         if (Fresco(arquivo)) return await File.ReadAllBytesAsync(arquivo, ct);
 
         // A busca é do tile, não de quem pediu: quem desiste (fecha a aba) não cancela a dos outros.
@@ -156,7 +175,21 @@ public sealed class TilesDoMapa
     private async Task<byte[]?> BuscarAsync(int z, int x, int y, string arquivo)
     {
         if (EmPausa()) return await CopiaVelhaAsync(arquivo);
-        await buscas.WaitAsync();
+        // Fila com teto: rajada de tiles nunca vistos (raspagem) não faz o mapa de todo mundo esperar sem fim atrás dela.
+        // Os tiles que já estão no disco nem passam por aqui.
+        if (Interlocked.Increment(ref naFila) > MaxNaFila)
+        {
+            Interlocked.Decrement(ref naFila);
+            return await CopiaVelhaAsync(arquivo);
+        }
+        try
+        {
+            await buscas.WaitAsync();
+        }
+        finally
+        {
+            Interlocked.Decrement(ref naFila);
+        }
         try
         {
             // Quem esperou a vez pode encontrar o tile que a busca anterior acabou de gravar — ou a pausa que ela abriu.
@@ -225,8 +258,60 @@ public sealed class TilesDoMapa
         .Replace("{y}", y.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal);
 
     /// <summary>Grava pelo arquivo temporário e move: quem lê no meio nunca pega um PNG pela metade.</summary>
+    /// <summary>O tile já está no disco e vale — servi-lo não vai ao servidor de tiles (não conta no limite de buscas por IP).</summary>
+    public bool EmCache(int z, int x, int y) => Valido(z, x, y) && Fresco(Arquivo(z, x, y));
+
+    /// <summary>A cópia que estiver no disco, mesmo vencida (para quando não há vaga de buscar: melhor que um quadrado cinza).</summary>
+    public async Task<byte[]?> CopiaGuardadaAsync(int z, int x, int y) => Valido(z, x, y) ? await CopiaVelhaAsync(Arquivo(z, x, y)) : null;
+
+    private string Arquivo(int z, int x, int y) => Path.Combine(pasta, z.ToString(CultureInfo.InvariantCulture),
+        x.ToString(CultureInfo.InvariantCulture), y.ToString(CultureInfo.InvariantCulture) + ".png");
+
+    // Quanto o cache ocupa: medido uma vez (na primeira gravação) e somado a cada tile novo. Aproximado de propósito —
+    // regravar um tile soma de novo —, o que só faz o teto chegar um pouco antes.
+    private long bytesNoDisco = -1;
+
+    private bool CacheCheio(int novos)
+    {
+        Medir();
+        return Interlocked.Add(ref bytesNoDisco, novos) > (long)opcoes.MaxMegasNoDisco * 1024 * 1024;
+    }
+
+    private void Medir()
+    {
+        if (Interlocked.Read(ref bytesNoDisco) < 0)
+        {
+            long medido = 0;
+            try
+            {
+                if (Directory.Exists(pasta))
+                    foreach (var f in new DirectoryInfo(pasta).EnumerateFiles("*.png", SearchOption.AllDirectories)) medido += f.Length;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+            Interlocked.CompareExchange(ref bytesNoDisco, medido, -1);
+        }
+    }
+
+    private int avisouTeto;
+
     private async Task GravarAsync(string arquivo, byte[] png)
     {
+        // Regravar um tile que já está no disco (o renovado) não cresce o cache: só soma a diferença e grava sempre.
+        // Tile novo é que passa pelo teto.
+        long antigo = -1;
+        try { if (File.Exists(arquivo)) antigo = new FileInfo(arquivo).Length; } catch (IOException) { }
+        if (antigo >= 0)
+        {
+            Medir();
+            Interlocked.Add(ref bytesNoDisco, png.Length - antigo);
+        }
+        else if (CacheCheio(png.Length))
+        {
+            Interlocked.Add(ref bytesNoDisco, -png.Length); // não gravou: não conta
+            if (Interlocked.Exchange(ref avisouTeto, 1) == 0)
+                logger?.LogWarning("O cache de tiles chegou ao teto ({Mb} MB): os tiles novos vão para quem pediu, sem gravar.", opcoes.MaxMegasNoDisco);
+            return;
+        }
         var temporario = arquivo + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
         {

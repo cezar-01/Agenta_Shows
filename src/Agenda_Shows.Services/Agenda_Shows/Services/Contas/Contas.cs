@@ -37,17 +37,21 @@ public sealed class Contas : IContas
     private readonly IPasswordHasher<Usuario> hasher;
     private readonly TimeProvider relogio;
 
-    // Hash de uma senha que ninguém sabe, calculado uma vez: o login de e-mail inexistente também verifica um hash,
-    // então o tempo de resposta não diz se a conta existe (anti-enumeração, molde do MyPods).
-    private readonly string hashFalso;
+    // Hash de uma senha que ninguém sabe: o login de e-mail inexistente também verifica um hash, então o tempo de resposta
+    // não diz se a conta existe (anti-enumeração, molde do MyPods). Calculado UMA vez por processo, no primeiro login que
+    // precisar — não no construtor: Contas é Scoped e a sessão a resolve em toda navegação (Sessao.ValidarAsync), o que
+    // virava um PBKDF2 de 100 mil iterações por página.
+    private static string? hashFalso;
 
     public Contas(IDbContextFactory<MainContext> fabrica, IPasswordHasher<Usuario> hasher, TimeProvider relogio)
     {
         this.fabrica = fabrica;
         this.hasher = hasher;
         this.relogio = relogio;
-        hashFalso = hasher.HashPassword(new Usuario(), Comum.Codigos.Novo(24));
     }
+
+    private string HashFalso() =>
+        LazyInitializer.EnsureInitialized(ref hashFalso, () => hasher.HashPassword(new Usuario(), Comum.Codigos.Novo(24)));
 
     public static string NormalizaEmail(string? email) => (email ?? string.Empty).Trim().ToLowerInvariant();
 
@@ -102,7 +106,7 @@ public sealed class Contas : IContas
         var e = NormalizaEmail(email);
         await using var db = await fabrica.CreateDbContextAsync(ct);
         var u = await db.Usuarios.FirstOrDefaultAsync(x => x.Email == e, ct);
-        var hash = u?.SenhaHash ?? hashFalso;
+        var hash = u?.SenhaHash ?? HashFalso();
         var r = hasher.VerifyHashedPassword(u ?? new Usuario(), hash, senha ?? string.Empty);
         if (u is null || r == PasswordVerificationResult.Failed) return null;
         if (r == PasswordVerificationResult.SuccessRehashNeeded)
@@ -124,6 +128,8 @@ public sealed class Contas : IContas
     {
         Autorizacao.EnsureAdmin(quem);
         await using var db = await fabrica.CreateDbContextAsync(ct);
+        // A lista tem o e-mail de todo mundo: o papel de quem lê vem do banco (aba aberta de admin rebaixado não lê mais).
+        await PapelNoBanco.EnsureAdminAsync(db, quem, ct);
         var q = db.Usuarios.AsNoTracking();
         if (!string.IsNullOrWhiteSpace(busca))
         {

@@ -3,8 +3,8 @@
 @rendermode @(new InteractiveServerRenderMode(prerender: false))
 @using System.Globalization
 @inject IAreaDoAdmin Area
-@inject Agenda_Shows.Services.Demo.Semeadura Semeadura
 @inject ILogger<Painel> Log
+<SessaoViva />
 
 @* O painel do admin: a cidade inteira numa tela — contas, eventos no ar, vendas, os mais vendidos e as vendas por nicho,
    os atalhos da moderação e o botão da demonstração. O serviço confere o papel de novo (EnsureAdmin) em cada chamada. *@
@@ -250,9 +250,9 @@
         erroDemo = null;
         try
         {
-            // A página já é só do admin, e a Semeadura não confere papel: o portão fica aqui, no gesto.
-            Autorizacao.EnsureAdmin(user);
-            await Semeadura.AtualizarDatasAsync();
+            // O portão é o serviço (papel lido do banco), com o usuário de AGORA — não o guardado quando a página abriu.
+            user = Estado is null ? new ClaimsPrincipal(new ClaimsIdentity()) : (await Estado).User;
+            await Area.AtualizarDatasDaDemoAsync(user);
             datasOk = true;
             // "Ao vivo agora" e "Eventos no ar" mudam com as datas novas.
             await CarregarAsync();
@@ -293,7 +293,7 @@
     private static string Alvo(int n) => n.ToString(CultureInfo.InvariantCulture);
 
     /// <summary>O alvo do contador em reais com ponto decimal (o JS lê com parseFloat).</summary>
-    private static string ReaisInvariante(int centavos) => (centavos / 100m).ToString("0.00", CultureInfo.InvariantCulture);
+    private static string ReaisInvariante(long centavos) => (centavos / 100m).ToString("0.00", CultureInfo.InvariantCulture);
 }
 
 <style>

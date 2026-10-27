@@ -17,6 +17,8 @@ services:
         value: "true"
       - key: Demo__Senha
         sync: false
+      - key: Demo__SenhaAdmin
+        sync: false
       - key: App__PublicBaseUrl
         fromService:
           type: web

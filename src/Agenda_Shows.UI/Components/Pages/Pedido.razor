@@ -3,6 +3,7 @@
 @rendermode @(new InteractiveServerRenderMode(prerender: false))
 @implements IDisposable
 @using System.ComponentModel.DataAnnotations
+<SessaoViva />
 @* O pagamento SIMULADO do pedido: contagem do prazo, Pix de demonstração e cartão de teste. Interativo sem prerender —
    a página depende da sessão e de um relógio de 1 s, e o serviço reconfere o dono do pedido em cada gesto.
    Nada aqui cobra ninguém: o cartão de verdade é recusado pelo serviço sem ser guardado. *@
@@ -207,13 +208,27 @@
                         break;
 
                     case Fase.Pago:
+                        var cancelado = p.EventoStatus == StatusDoEvento.Cancelado;
                         <section class="ped-pago" aria-labelledby="ped-ingressos-titulo">
-                            <div class="um-alert um-alert-success" role="status">
-                                <div>
-                                    <b>@(p.Metodo == MetodoDePagamento.Gratuito ? "Reserva confirmada!" : "Pagamento aprovado!")</b>
-                                    <p class="ped-sem-margem">Seus ingressos estão aqui e em <a href="/meus-ingressos">Meus ingressos</a>.</p>
+                            @if (cancelado)
+                            {
+                                @* A porta recusa ingresso de evento cancelado (ValidarIngressoAsync): a tela não pode dizer "garantido". *@
+                                <div class="um-alert um-alert-danger" role="status">
+                                    <div>
+                                        <b>Evento cancelado pelo organizador.</b>
+                                        <p class="ped-sem-margem">Estes ingressos não valem mais para a entrada; ficam aqui como comprovante. @(p.Metodo == MetodoDePagamento.Gratuito ? "Era um ingresso gratuito." : "O pagamento é simulado, então nada foi cobrado.")</p>
+                                    </div>
                                 </div>
-                            </div>
+                            }
+                            else
+                            {
+                                <div class="um-alert um-alert-success" role="status">
+                                    <div>
+                                        <b>@(p.Metodo == MetodoDePagamento.Gratuito ? "Reserva confirmada!" : "Pagamento aprovado!")</b>
+                                        <p class="ped-sem-margem">Seus ingressos estão aqui e em <a href="/meus-ingressos">Meus ingressos</a>.</p>
+                                    </div>
+                                </div>
+                            }
 
                             <p class="ped-pago-meta um-tnum">@(MetodoTexto(p) + QuandoPagou(p))</p>
 
@@ -235,6 +250,10 @@
                                                 @if (i.UsadoEmUtc is { } usadoEm)
                                                 {
                                                     <span class="um-badge um-badge-info">✓ Usado às @BrazilTime.Format(usadoEm, "HH:mm")</span>
+                                                }
+                                                else if (cancelado)
+                                                {
+                                                    <span class="um-badge um-badge-danger">Não vale: evento cancelado</span>
                                                 }
                                                 else
                                                 {
@@ -260,7 +279,11 @@
                                 <div class="um-alert um-alert-warning" role="status">
                                     <div>
                                         <b>Pedido cancelado.</b>
-                                        <p class="ped-sem-margem">Nada foi cobrado e os ingressos voltaram para a venda.</p>
+                                        @* O banco não guarda QUEM cancelou o pedido (a pessoa ou a limpeza do cancelamento do
+                                           evento): o texto não aponta causa, só diz como as coisas estão. *@
+                                        <p class="ped-sem-margem">@(p.EventoStatus == StatusDoEvento.Cancelado
+                                            ? "O evento também foi cancelado pelo organizador. Nada foi cobrado."
+                                            : "Nada foi cobrado e os ingressos voltaram para a venda.")</p>
                                     </div>
                                 </div>
                             }
@@ -269,13 +292,18 @@
                                 <div class="um-alert um-alert-warning" role="status">
                                     <div>
                                         <b>O prazo para pagar acabou.</b>
-                                        <p class="ped-sem-margem">Os ingressos voltaram para a venda. Se ainda quiser ir, faça um novo pedido.</p>
+                                        <p class="ped-sem-margem">@(p.EventoStatus switch
+                                        {
+                                            StatusDoEvento.Cancelado => "E o evento foi cancelado pelo organizador. Nada foi cobrado.",
+                                            StatusDoEvento.Publicado when p.EventoFimUtc > Agora() => "Os ingressos voltaram para a venda. Se ainda quiser ir, faça um novo pedido.",
+                                            _ => "Nada foi cobrado. Este evento não está mais à venda.",
+                                        })</p>
                                     </div>
                                 </div>
                             }
-                            @if (mensagemPix is not null || mensagemCancelar is not null)
+                            @if (mensagemPix is not null || mensagemCartao is not null || mensagemCancelar is not null)
                             {
-                                <p class="um-muted ped-sem-margem">@(mensagemPix ?? mensagemCancelar)</p>
+                                <p class="um-muted ped-sem-margem">@(mensagemPix ?? mensagemCartao ?? mensagemCancelar)</p>
                             }
                             <div class="um-row">
                                 <a href="/evento/@p.EventoSlug" class="um-btn um-btn-primary">Voltar ao evento</a>
@@ -620,6 +648,9 @@
             else
             {
                 cartao.Cvv = string.Empty;
+                // Recusado porque o pedido mudou (prazo acabou, evento cancelado, teto por pessoa): relê, como o Pix faz, para
+                // a tela sair do "aguardando" e mostrar a situação de agora.
+                if (desfecho == DesfechoDoCartao.Invalido) await CarregarAsync();
             }
         }
         catch (UnauthorizedAccessException ex)
@@ -701,6 +732,7 @@
     private static string TituloDa(Fase fase, PedidoDto p) => fase switch
     {
         Fase.Aguardando => "Pagamento",
+        Fase.Pago when p.EventoStatus == StatusDoEvento.Cancelado => "Evento cancelado",
         Fase.Pago => p.Ingressos.Count == 1 ? "Ingresso garantido" : "Ingressos garantidos",
         Fase.Cancelado => "Pedido cancelado",
         _ => "Prazo encerrado",

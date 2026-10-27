@@ -8,6 +8,7 @@
 @inject TimeProvider Relogio
 @inject NavigationManager Nav
 @inject ILogger<EditarEvento> Log
+<SessaoViva />
 
 @* Cadastro e edição do evento. A hora é a de Brasília (o que a pessoa digita) e o serviço converte para UTC; o ponto
    no mapa vem do mapa-alfinete.js, que escreve "lat,lng" no #um-coords e dispara change (o @bind lê dali). O serviço

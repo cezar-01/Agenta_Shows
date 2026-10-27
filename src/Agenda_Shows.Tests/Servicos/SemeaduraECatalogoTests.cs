@@ -12,7 +12,7 @@ public class SemeaduraECatalogoTests
     public async Task Semeadura_PlantaNichosContasEEventos_EDuasVezesNaoDuplica()
     {
         using var b = await new BancoDeTeste().ComDemoAsync();
-        await b.Semeadura().SemearAsync(BancoDeTeste.SenhaDeTeste);
+        await b.Semeadura().SemearAsync(BancoDeTeste.SenhaDeTeste, BancoDeTeste.SenhaDeTeste);
 
         await using var db = b.Db();
         Assert.Equal(DadosDaDemo.Nichos.Length, await db.Categorias.CountAsync());

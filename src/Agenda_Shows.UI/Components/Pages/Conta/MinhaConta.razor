@@ -92,6 +92,14 @@
             <p class="mc-divulgar">Quer divulgar eventos? Fale com a equipe da UMURA: ela transforma sua conta em conta de organizador.</p>
         }
 
+        @if (Sair == "refazer")
+        {
+            @* Voltou do /sair com o token de uma página antiga (outra aba trocou a sessão): não saiu — o botão abaixo já vem
+               com token novo. *@
+            <div class="um-alert um-alert-info mc-sair-aviso" role="status">
+                <p><b>Sua página estava desatualizada.</b> Toque em "Sair da conta" de novo.</p>
+            </div>
+        }
         <form method="post" action="/sair" class="mc-sair">
             <AntiforgeryToken />
             <button type="submit" class="um-btn um-btn-outline">Sair da conta</button>
@@ -119,10 +127,15 @@
     .mc-atalho small { font-size: 0.8125rem; color: var(--um-ink-muted); }
     .mc-divulgar { margin: 0.25rem 0 0; color: var(--um-ink-soft); }
     .mc-sair { margin-top: 0.5rem; }
+    .mc-sair-aviso { margin-top: 1rem; }
+    .mc-sair-aviso p { margin: 0; }
 </style>
 
 @code {
     [CascadingParameter] private Task<AuthenticationState>? Estado { get; set; }
+
+    /// <summary>"refazer" quando o /sair recusou o token velho de outra aba (Endpoints.cs).</summary>
+    [SupplyParameterFromQuery(Name = "sair")] private string? Sair { get; set; }
 
     private UsuarioDto? conta;
     private bool ehOrganizador;

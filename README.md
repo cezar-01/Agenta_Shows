@@ -26,7 +26,7 @@ O repositório inclui `render.yaml` para criar um Web Service gratuito no Render
 
 1. Envie o `render.yaml` e as alterações desejadas para o GitHub.
 2. No [Render](https://dashboard.render.com/), escolha **New → Blueprint**, conecte este repositório e confirme a criação do serviço `umura-shows-demo`.
-3. Na configuração inicial, informe um valor para `Demo__Senha`. Esse valor é solicitado pelo Render e não fica no repositório; ele será a senha das contas de demonstração listadas abaixo.
+3. Na configuração inicial, informe `Demo__Senha` (a senha das contas de demonstração, que pode ser compartilhada com quem for avaliar) e `Demo__SenhaAdmin` (a senha **só** do `admin@umura.dev`, que não deve ser compartilhada). O Render pede os dois valores e eles não ficam no repositório. Sem `Demo__SenhaAdmin`, o admin nasce com senha aleatória e ninguém entra nele. **Serviço que já existe** (criado antes de 26/10): o Blueprint não pede a chave nova sozinho — crie `Demo__SenhaAdmin` à mão em *Environment*, no painel do Render, antes do próximo deploy (o banco do plano grátis é refeito a cada deploy, então o admin renasce com ela).
 4. Aguarde o primeiro deploy e abra a URL `onrender.com` do serviço. No plano gratuito, o primeiro acesso depois de 15 minutos sem tráfego pode levar cerca de um minuto para acordar.
 
 **Limitações do plano gratuito:** o serviço usa SQLite em armazenamento temporário. O Render apaga esse banco ao reiniciar, dormir ou fazer novo deploy; ao subir de novo, os dados iniciais de demonstração são semeados novamente. Contas criadas, compras e alterações feitas durante o teste não são persistentes. É adequado para uma apresentação, não para produção ou dados reais.
@@ -62,6 +62,9 @@ Sem Docker, dá pra ver o site com o perfil **`previa-sem-docker`** (SQLite loca
 
 A senha de todas é a chave **`Demo:Senha`** dos user-secrets do projeto UI
 (`dotnet user-secrets list --project src/Agenda_Shows.UI`). Ela não está escrita em lugar nenhum do repositório.
+O admin pode ter senha própria em **`Demo:SenhaAdmin`**; no Development, sem ela, ele usa a `Demo:Senha`. Em produção (Render)
+a senha do admin é sempre separada, porque a da demo é feita para ser compartilhada. A senha só vale para contas criadas depois
+da mudança: num banco que já existe, as contas mantêm a senha com que nasceram.
 
 | E-mail | Tipo | O que enxerga |
 |---|---|---|

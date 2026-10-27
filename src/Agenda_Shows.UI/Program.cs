@@ -75,7 +75,10 @@ builder.Services.AddAntiforgery(o =>
 {
     o.HeaderName = "X-CSRF-TOKEN";
     o.Cookie.Name = "Umura.AntiCsrf";
-    o.Cookie.SameSite = SameSiteMode.Strict;
+    // Lax, não Strict: com Strict, abrir o site por um link de fora (Instagram, WhatsApp Web) não manda o cookie, o servidor
+    // gera outro e os formulários das abas que já estavam abertas (Sair, Entrar) passam a falhar. Quem barra o CSRF é o
+    // token do formulário; e um POST vindo de outro site não leva cookie Lax de qualquer jeito.
+    o.Cookie.SameSite = SameSiteMode.Lax;
     o.Cookie.SecurePolicy = CookieSeguro.Politica(builder.Environment);
     o.Cookie.HttpOnly = true;
 });
@@ -107,6 +110,7 @@ builder.Services.AddOptions<OpcoesDosTiles>()
     });
 builder.Services.AddHttpClient(TilesDoMapa.ClientName).RemoveAllLoggers();
 builder.Services.AddSingleton<TilesDoMapa>();
+builder.Services.AddSingleton<LimiteDeBuscasDeTiles>();
 
 var app = builder.Build();
 

@@ -12,10 +12,10 @@ using Microsoft.EntityFrameworkCore;
 namespace Agenda_Shows.Services.Organizador;
 
 public sealed record LinhaDoMeuEvento(int Id, string Slug, string Titulo, string Categoria, string ImagemUrl, DateTime InicioUtc,
-    DateTime FimUtc, StatusDoEvento Status, bool Destaque, int Vendidos, int Capacidade, int ReceitaCentavos, int Visualizacoes,
+    DateTime FimUtc, StatusDoEvento Status, bool Destaque, int Vendidos, int Capacidade, long ReceitaCentavos, int Visualizacoes,
     string Organizador, int OrganizadorId);
 
-public sealed record PainelDoOrganizador(int Eventos, int Publicados, int IngressosVendidos, int ReceitaCentavos, int Visualizacoes,
+public sealed record PainelDoOrganizador(int Eventos, int Publicados, int IngressosVendidos, long ReceitaCentavos, int Visualizacoes,
     IReadOnlyList<(DateOnly Dia, int Vendas, int Visualizacoes)> UltimosDias, IReadOnlyList<LinhaDoMeuEvento> Proximos);
 
 public sealed class LoteForm
@@ -76,18 +76,29 @@ public sealed class AreaDoOrganizador(IDbContextFactory<MainContext> fabrica, Ti
     private DateTime Agora => relogio.GetUtcNow().UtcDateTime;
 
     /// <summary>Os eventos que a pessoa pode ver aqui: os dela; o admin vê todos.</summary>
-    private static IQueryable<Evento> Meus(MainContext db, ClaimsPrincipal quem)
+    /// <summary>
+    /// O que a área enxerga: os eventos do organizador; o admin, todos. O papel vem do BANCO (<see cref="PapelNoBanco"/>):
+    /// com a aba aberta o claim pode estar velho — quem foi rebaixado não lê mais nada daqui, e o admin rebaixado a
+    /// organizador volta a ver só os próprios eventos.
+    /// </summary>
+    private static async Task<IQueryable<Evento>> MeusAsync(MainContext db, ClaimsPrincipal quem, CancellationToken ct)
     {
-        var id = Autorizacao.EnsureOrganizador(quem);
+        Autorizacao.EnsureOrganizador(quem);
+        var (id, papel) = await PapelNoBanco.PapelAsync(db, quem, ct);
         var q = db.Eventos.AsNoTracking();
-        return Autorizacao.EhAdmin(quem) ? q : q.Where(e => e.OrganizadorId == id);
+        return papel switch
+        {
+            Papel.Admin => q,
+            Papel.Organizador => q.Where(e => e.OrganizadorId == id),
+            _ => throw new UnauthorizedAccessException(Autorizacao.MensagemOrganizador),
+        };
     }
 
     internal static IQueryable<LinhaDoMeuEvento> Linhas(IQueryable<Evento> q, MainContext db) => q.Select(e => new LinhaDoMeuEvento(
         e.Id, e.Slug, e.Titulo, e.Categoria!.Nome, e.ImagemUrl, e.InicioUtc, e.FimUtc, e.Status, e.Destaque,
         e.Ingressos.Sum(i => (int?)i.Vendidos) ?? 0,
         e.Ingressos.Sum(i => (int?)i.Quantidade) ?? 0,
-        db.Pedidos.Where(p => p.EventoId == e.Id && p.Status == StatusDoPedido.Pago).Sum(p => (int?)p.TotalCentavos) ?? 0,
+        db.Pedidos.Where(p => p.EventoId == e.Id && p.Status == StatusDoPedido.Pago).Sum(p => (long?)p.TotalCentavos) ?? 0,
         db.Visualizacoes.Count(v => v.EventoId == e.Id),
         e.Organizador!.NomeDoOrganizador ?? e.Organizador.Nome, e.OrganizadorId));
 
@@ -95,7 +106,7 @@ public sealed class AreaDoOrganizador(IDbContextFactory<MainContext> fabrica, Ti
     {
         await using var db = await fabrica.CreateDbContextAsync(ct);
         var agora = Agora;
-        var meus = Meus(db, quem);
+        var meus = await MeusAsync(db, quem, ct);
         var ids = await meus.Select(e => e.Id).ToListAsync(ct);
         var linhas = await Linhas(meus, db).ToListAsync(ct);
 
@@ -120,13 +131,13 @@ public sealed class AreaDoOrganizador(IDbContextFactory<MainContext> fabrica, Ti
     public async Task<IReadOnlyList<LinhaDoMeuEvento>> MeusEventosAsync(ClaimsPrincipal quem, CancellationToken ct = default)
     {
         await using var db = await fabrica.CreateDbContextAsync(ct);
-        return await Linhas(Meus(db, quem).OrderByDescending(e => e.InicioUtc), db).ToListAsync(ct);
+        return await Linhas((await MeusAsync(db, quem, ct)).OrderByDescending(e => e.InicioUtc), db).ToListAsync(ct);
     }
 
     public async Task<EventoForm?> ParaEditarAsync(ClaimsPrincipal quem, int id, CancellationToken ct = default)
     {
         await using var db = await fabrica.CreateDbContextAsync(ct);
-        var e = await Meus(db, quem).Include(x => x.Ingressos).FirstOrDefaultAsync(x => x.Id == id, ct);
+        var e = await (await MeusAsync(db, quem, ct)).Include(x => x.Ingressos).FirstOrDefaultAsync(x => x.Id == id, ct);
         if (e is null) return null;
         return new EventoForm
         {
@@ -154,62 +165,85 @@ public sealed class AreaDoOrganizador(IDbContextFactory<MainContext> fabrica, Ti
         var inicio = BrazilTime.ToUtc(f.InicioLocal);
         var fim = BrazilTime.ToUtc(f.FimLocal);
 
-        Evento e;
-        if (f.Id is { } id)
+        // Numa transação (dentro da estratégia de retry do MySQL, que exige isso): a edição trava a linha do evento.
+        var estrategia = db.Database.CreateExecutionStrategy();
+        return await estrategia.ExecuteAsync(async () =>
         {
-            var achado = await db.Eventos.Include(x => x.Ingressos).FirstOrDefaultAsync(x => x.Id == id, ct);
-            if (achado is null) return Resultado<string>.Falha("Evento não encontrado.");
-            e = achado;
-            await PapelNoBanco.EnsureDonoDoEventoAsync(db, quem, e.OrganizadorId, ct);
-            if (e.Status == StatusDoEvento.Cancelado) return Resultado<string>.Falha("Evento cancelado não pode ser editado.");
-        }
-        else
-        {
-            e = new Evento { OrganizadorId = autorId, CriadoEmUtc = agora, Slug = await SlugLivreAsync(db, f.Titulo, ct) };
-            db.Eventos.Add(e);
-        }
+            db.ChangeTracker.Clear(); // retry: recomeça do zero, sem as mudanças da tentativa que falhou
+            if (f.Id is { } idAntes)
+            {
+                // Quem é o dono e se ainda dá para editar — antes da transação (não trava nada e falha cedo).
+                var info = await db.Eventos.AsNoTracking().Where(x => x.Id == idAntes)
+                    .Select(x => new { x.OrganizadorId, x.Status }).FirstOrDefaultAsync(ct);
+                if (info is null) return Resultado<string>.Falha("Evento não encontrado.");
+                await PapelNoBanco.EnsureDonoDoEventoAsync(db, quem, info.OrganizadorId, ct);
+                if (info.Status == StatusDoEvento.Cancelado) return Resultado<string>.Falha("Evento cancelado não pode ser editado.");
+            }
 
-        e.Titulo = f.Titulo.Trim();
-        e.Resumo = f.Resumo.Trim();
-        e.Descricao = f.Descricao.Trim();
-        e.CategoriaId = f.CategoriaId;
-        e.LocalNome = f.LocalNome.Trim();
-        e.Endereco = f.Endereco.Trim();
-        e.Bairro = f.Bairro.Trim();
-        e.Latitude = f.Latitude;
-        e.Longitude = f.Longitude;
-        e.InicioUtc = inicio;
-        e.FimUtc = fim;
-        e.ImagemUrl = f.ImagemUrl;
-        e.ClassificacaoIndicativa = f.ClassificacaoIndicativa;
-        e.Status = f.Publicar ? StatusDoEvento.Publicado : StatusDoEvento.Rascunho;
-        e.AtualizadoEmUtc = agora;
-        // Destaque é decisão do admin: o formulário do organizador não o toca.
+            await using var tx = await db.Database.BeginTransactionAsync(ct);
+            Evento e;
+            if (f.Id is { } id)
+            {
+                // A trava é o PRIMEIRO comando da transação: trava a linha do evento até o commit conferindo que ninguém o
+                // cancelou. Um cancelamento que chegue no meio espera este salvar terminar (e vence depois); um que chegou antes
+                // faz este falhar — sem isto, salvar o formulário por cima "descancelava" o evento. E por ser o primeiro, a
+                // leitura dos lotes logo abaixo já é a de AGORA (no REPEATABLE READ o retrato nasce na primeira leitura).
+                var livre = await db.Eventos.Where(x => x.Id == id && x.Status != StatusDoEvento.Cancelado)
+                    .ExecuteUpdateAsync(s => s.SetProperty(x => x.AtualizadoEmUtc, agora), ct);
+                if (livre == 0) return Resultado<string>.Falha("Este evento acabou de ser cancelado e não pode mais ser editado.");
+                var achado = await db.Eventos.Include(x => x.Ingressos).FirstOrDefaultAsync(x => x.Id == id, ct);
+                if (achado is null) return Resultado<string>.Falha("Evento não encontrado.");
+                e = achado;
+            }
+            else
+            {
+                e = new Evento { OrganizadorId = autorId, CriadoEmUtc = agora, Slug = await SlugLivreAsync(db, f.Titulo, ct) };
+                db.Eventos.Add(e);
+            }
 
-        // Lotes: atualiza os que vieram com id, cria os novos, remove os que sumiram — mas nunca reduz abaixo do vendido
-        // nem apaga lote com venda (quem comprou continua com o ingresso).
-        var vindos = f.Lotes.Where(l => l.Id is not null).Select(l => l.Id!.Value).ToHashSet();
-        foreach (var velho in e.Ingressos.Where(i => !vindos.Contains(i.Id)).ToList())
-        {
-            if (velho.Vendidos > 0) return Resultado<string>.Falha($"O lote \"{velho.Nome}\" já tem ingresso vendido e não pode ser removido.");
-            e.Ingressos.Remove(velho);
-        }
-        var ordem = 0;
-        foreach (var l in f.Lotes)
-        {
-            var t = l.Id is { } lid ? e.Ingressos.FirstOrDefault(i => i.Id == lid) : null;
-            if (l.Id is not null && t is null) return Resultado<string>.Falha("Lote inválido.");
-            if (t is null) { t = new TipoDeIngresso(); e.Ingressos.Add(t); }
-            if (l.Quantidade < t.Vendidos) return Resultado<string>.Falha($"O lote \"{t.Nome}\" já vendeu {t.Vendidos}; a quantidade não pode ficar menor.");
-            t.Nome = l.Nome.Trim();
-            t.Descricao = string.IsNullOrWhiteSpace(l.Descricao) ? null : l.Descricao.Trim();
-            t.PrecoCentavos = (int)Math.Round(l.Preco * 100m, MidpointRounding.AwayFromZero);
-            t.Quantidade = l.Quantidade;
-            t.Ordem = ordem++;
-        }
+            e.Titulo = f.Titulo.Trim();
+            e.Resumo = f.Resumo.Trim();
+            e.Descricao = f.Descricao.Trim();
+            e.CategoriaId = f.CategoriaId;
+            e.LocalNome = f.LocalNome.Trim();
+            e.Endereco = f.Endereco.Trim();
+            e.Bairro = f.Bairro.Trim();
+            e.Latitude = f.Latitude;
+            e.Longitude = f.Longitude;
+            e.InicioUtc = inicio;
+            e.FimUtc = fim;
+            e.ImagemUrl = f.ImagemUrl;
+            e.ClassificacaoIndicativa = f.ClassificacaoIndicativa;
+            e.Status = f.Publicar ? StatusDoEvento.Publicado : StatusDoEvento.Rascunho;
+            e.AtualizadoEmUtc = agora;
+            // Destaque é decisão do admin: o formulário do organizador não o toca.
 
-        await db.SaveChangesAsync(ct);
-        return Resultado<string>.Sucesso(e.Slug);
+            // Lotes: atualiza os que vieram com id, cria os novos, remove os que sumiram — mas nunca reduz abaixo do vendido
+            // nem apaga lote com venda (quem comprou continua com o ingresso).
+            var vindos = f.Lotes.Where(l => l.Id is not null).Select(l => l.Id!.Value).ToHashSet();
+            foreach (var velho in e.Ingressos.Where(i => !vindos.Contains(i.Id)).ToList())
+            {
+                if (velho.Vendidos > 0) return Resultado<string>.Falha($"O lote \"{velho.Nome}\" já tem ingresso vendido e não pode ser removido.");
+                e.Ingressos.Remove(velho);
+            }
+            var ordem = 0;
+            foreach (var l in f.Lotes)
+            {
+                var t = l.Id is { } lid ? e.Ingressos.FirstOrDefault(i => i.Id == lid) : null;
+                if (l.Id is not null && t is null) return Resultado<string>.Falha("Lote inválido.");
+                if (t is null) { t = new TipoDeIngresso(); e.Ingressos.Add(t); }
+                if (l.Quantidade < t.Vendidos) return Resultado<string>.Falha($"O lote \"{t.Nome}\" já vendeu {t.Vendidos}; a quantidade não pode ficar menor.");
+                t.Nome = l.Nome.Trim();
+                t.Descricao = string.IsNullOrWhiteSpace(l.Descricao) ? null : l.Descricao.Trim();
+                t.PrecoCentavos = (int)Math.Round(l.Preco * 100m, MidpointRounding.AwayFromZero);
+                t.Quantidade = l.Quantidade;
+                t.Ordem = ordem++;
+            }
+
+            await db.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct);
+            return Resultado<string>.Sucesso(e.Slug);
+        });
     }
 
     public async Task<Resultado<bool>> CancelarAsync(ClaimsPrincipal quem, int id, CancellationToken ct = default)
@@ -235,7 +269,7 @@ public sealed class AreaDoOrganizador(IDbContextFactory<MainContext> fabrica, Ti
     public async Task<VendasDoEvento?> VendasAsync(ClaimsPrincipal quem, int id, CancellationToken ct = default)
     {
         await using var db = await fabrica.CreateDbContextAsync(ct);
-        var linha = await Linhas(Meus(db, quem).Where(e => e.Id == id), db).FirstOrDefaultAsync(ct);
+        var linha = await Linhas((await MeusAsync(db, quem, ct)).Where(e => e.Id == id), db).FirstOrDefaultAsync(ct);
         if (linha is null) return null;
         var pedidos = await db.Pedidos.AsNoTracking().Where(p => p.EventoId == id && p.Status != StatusDoPedido.Expirado)
             .OrderByDescending(p => p.CriadoEmUtc)

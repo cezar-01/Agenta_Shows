@@ -1,0 +1,67 @@
+@using System.Security.Claims
+@implements IDisposable
+@inject AuthenticationStateProvider Provedor
+@inject NavigationManager Nav
+@inject ILogger<SessaoViva> Log
+@inject IContas Contas
+@* Fica DENTRO de cada página/ilha interativa que depende de login (não desenha nada). O <Routes> é estático e a
+   interatividade é por página: quando a RevalidacaoDoPapel derruba a identidade do circuito (papel mudou no banco, conta
+   sumiu), nada desmonta a página — ela seguiria com o usuário velho guardado, ou diria "entre na sua conta" para quem
+   está logado. Aqui, mudou quem é (ou o papel), recarrega a página inteira: a navegação reconfere o papel na hora
+   (Sessao.ConferirAgora), o cookie sai com o papel novo e o [Authorize] da página decide de novo (fica, vai para
+   /acesso-negado ou para /entrar). *@
+
+@code {
+    private string? quemEra;
+    private bool assinado;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var user = (await Provedor.GetAuthenticationStateAsync()).User;
+        quemEra = Assinatura(user);
+        Provedor.AuthenticationStateChanged += Mudou;
+        assinado = true;
+
+        // A navegação aprimorada pode reaproveitar um circuito aberto ANTES de o papel mudar (quem foi promovido chega em
+        // /organizador e o circuito ainda diz "Usuario"). Uma conferência por página, por chave primária: divergiu do
+        // banco, recarrega — o reload abre um circuito novo com o papel já reconferido, então não entra em laço.
+        // Só no circuito: no prerender (as ilhas da página do evento) o usuário é o do cookie, que a navegação acabou de
+        // reconferir — e um Refresh ali viraria um redirecionamento no meio do SSR.
+        if (RendererInfo.IsInteractive && Autorizacao.UsuarioId(user) is { } id)
+        {
+            try
+            {
+                var u = await Contas.ObterAsync(id);
+                if (u is null || !user.IsInRole(Sessao.NomeDoPapel(u.Papel))) Nav.Refresh(forceReload: true);
+            }
+            catch (Exception ex)
+            {
+                Log.LogWarning("Não conferi o papel ao abrir a página ({Erro}).", ex.GetType().Name);
+            }
+        }
+    }
+
+    private void Mudou(Task<AuthenticationState> tarefa) => _ = InvokeAsync(async () =>
+    {
+        try
+        {
+            if (Assinatura((await tarefa).User) != quemEra) Nav.Refresh(forceReload: true);
+        }
+        catch (Exception ex)
+        {
+            // Recarregar é só conforto: se falhar, as ações continuam protegidas no serviço (PapelNoBanco).
+            Log.LogWarning("Não recarreguei a página depois da troca de sessão ({Erro}).", ex.GetType().Name);
+        }
+    });
+
+    /// <summary>Quem é + papéis; visitante = nulo. Mudou isto, a página não vale mais para este circuito.</summary>
+    private static string? Assinatura(ClaimsPrincipal u) =>
+        u.Identity?.IsAuthenticated == true
+            ? u.FindFirst(ClaimTypes.NameIdentifier)?.Value + "|" + string.Join(",", u.FindAll(ClaimTypes.Role).Select(c => c.Value).Order())
+            : null;
+
+    public void Dispose()
+    {
+        if (assinado) Provedor.AuthenticationStateChanged -= Mudou;
+    }
+}

@@ -10,6 +10,9 @@
     @* A cor da barra do navegador segue o modo do aparelho. *@
     <meta name="theme-color" content="#EDECE7" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#0B3C3F" media="(prefers-color-scheme: dark)" />
+    @* A marca da sessão (embaralhada: não diz quem é) que o sessao.js compara entre as abas: sair, entrar com outra conta
+       ou mudar de papel numa aba recarrega as outras — senão a aba esquecida aberta seguia agindo com a sessão velha. *@
+    <meta name="um-sessao" content="@MarcaDaSessao()" />
     <meta name="application-name" content="UMURA" />
     <meta name="apple-mobile-web-app-title" content="UMURA" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -58,10 +61,22 @@
             data-cluster-css="@Assets["js/vendor/leaflet.markercluster/MarkerCluster.css"]"
             data-cluster-css-default="@Assets["js/vendor/leaflet.markercluster/MarkerCluster.Default.css"]"></script>
     <script src="@Assets["js/pwa.js"]" defer></script>
+    <script src="@Assets["js/sessao.js"]" defer></script>
 </body>
 
 </html>
 
 @code {
     [CascadingParameter] private HttpContext? HttpContext { get; set; }
+
+    /// <summary>"anon" para visitante; para quem entrou, 12 hex de um hash da conta + papéis (o mesmo em todas as abas dela).</summary>
+    private string MarcaDaSessao()
+    {
+        var u = HttpContext?.User;
+        if (u?.Identity?.IsAuthenticated != true) return "anon";
+        var id = u.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        var papeis = string.Join(",", u.FindAll(System.Security.Claims.ClaimTypes.Role).Select(c => c.Value).Order());
+        var hash = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes($"umura|{id}|{papeis}"));
+        return Convert.ToHexString(hash, 0, 6);
+    }
 }

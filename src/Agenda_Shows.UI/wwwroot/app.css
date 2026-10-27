@@ -1062,6 +1062,53 @@ html.um-retraido .um-header { transform: translateY(-101%); }
 .um-chamada p { margin: 0; opacity: 0.92; }
 .um-chamada .um-btn-accent { justify-self: start; }
 
+/* Chamada para o Mapa (home, entre "Ao vivo agora" e "Hoje"): texto + um CTA, e um mapa de ruas desenhado ao lado.
+   Mesmo bloco da marca da chamada do organizador; o desenho usa só a tinta do bloco (traços translúcidos) e o coral
+   apenas no pino "ao vivo". No celular o mapa vira uma faixa baixa em cima do texto. */
+.um-mapa-cta {
+    display: grid;
+    margin-block: 1.5rem 0.5rem;
+    overflow: hidden;
+    border-radius: var(--um-radius-lg);
+    background: var(--um-marca-bg);
+    color: var(--um-marca-ink);
+}
+.um-mapa-cta-texto { display: grid; gap: 0.6rem; align-content: center; padding: 1.1rem 1.5rem 1.5rem; }
+.um-mapa-cta-texto .um-eyebrow { color: var(--um-marca-ink); opacity: 0.85; }
+.um-mapa-cta h2 { margin: 0; color: var(--um-marca-ink); font-size: clamp(1.3rem, 4vw, 1.75rem); }
+.um-mapa-cta p { margin: 0; max-width: 46ch; color: var(--um-marca-ink); opacity: 0.92; }
+/* O botão é o inverso do bloco (Off White com a tinta do fundo): no claro e no escuro o contraste passa de 10:1. */
+.um-mapa-cta-btn { justify-self: start; gap: 0.5rem; margin-top: 0.35rem; background: var(--um-marca-ink); color: var(--um-marca-bg); }
+.um-mapa-cta-btn svg { width: 18px; height: 18px; }
+.um-mapa-cta-btn:hover { color: var(--um-marca-bg); transform: translateY(-1px); box-shadow: var(--um-shadow); }
+/* O anel de foco padrão é Deep Green — some sobre o bloco Deep Green. Aqui o foco é um traço coral de 3px. */
+.um-mapa-cta-btn:focus-visible { outline: 3px solid var(--um-accent); outline-offset: 3px; }
+.um-mapa-cta-arte { position: relative; display: block; order: -1; height: 128px; color: var(--um-marca-ink); }
+.um-mapa-cta-arte svg { display: block; width: 100%; height: 100%; }
+/* Esfuma a borda do desenho no bloco, para o mapa "sair" do texto em vez de parecer uma foto colada. */
+.um-mapa-cta-arte::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(0deg, var(--um-marca-bg), transparent 45%); }
+.mc-parque { fill: var(--um-marca-ink); fill-opacity: 0.07; }
+.mc-rio { fill: none; stroke: var(--um-marca-ink); stroke-opacity: 0.12; stroke-width: 12; stroke-linecap: round; }
+.mc-rua path { fill: none; stroke: var(--um-marca-ink); stroke-opacity: 0.1; stroke-width: 2; }
+.mc-avenida path { fill: none; stroke: var(--um-marca-ink); stroke-opacity: 0.2; stroke-width: 5; stroke-linecap: round; }
+.mc-pino path { fill: var(--um-marca-ink); }
+.mc-pino circle { fill: var(--um-marca-bg); }
+.mc-pino.is-aovivo path { fill: var(--um-accent); }
+.mc-pino.is-aovivo circle { fill: var(--um-accent-ink); }
+.mc-pino.is-aovivo .mc-onda { fill: none; stroke: var(--um-accent); stroke-width: 3; opacity: 0.45; transform-box: fill-box; transform-origin: center; }
+.mc-voce circle:first-child { fill: var(--um-marca-ink); fill-opacity: 0.18; }
+.mc-voce circle:last-child { fill: var(--um-marca-ink); }
+@media (prefers-reduced-motion: no-preference) {
+    .mc-pino.is-aovivo .mc-onda { animation: um-onda 2.4s ease-out infinite; }
+}
+@keyframes um-onda { 0% { opacity: 0.7; transform: scale(0.6); } 100% { opacity: 0; transform: scale(1.9); } }
+@media (min-width: 641px) {
+    .um-mapa-cta { grid-template-columns: minmax(0, 1fr) minmax(0, 46%); }
+    .um-mapa-cta-texto { padding: 1.75rem 0 1.75rem 2rem; }
+    .um-mapa-cta-arte { order: 0; height: auto; min-height: 210px; }
+    .um-mapa-cta-arte::after { background: linear-gradient(90deg, var(--um-marca-bg), transparent 40%); }
+}
+
 /* Abas (Pix / Cartão, Hoje / Próximos) */
 .um-abas { display: flex; gap: 0.25rem; padding: 0.25rem; border-radius: var(--um-radius-pill); background: var(--um-surface-2); width: fit-content; max-width: 100%; overflow-x: auto; }
 .um-abas button, .um-abas a {

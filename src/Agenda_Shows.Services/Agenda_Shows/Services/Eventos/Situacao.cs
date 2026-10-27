@@ -56,7 +56,7 @@ public static class Dinheiro
     private static readonly System.Globalization.CultureInfo PtBr = System.Globalization.CultureInfo.GetCultureInfo("pt-BR");
 
     /// <summary>"R$ 60,00". Centavos → texto; dinheiro nunca passa por double.</summary>
-    public static string Reais(int centavos) => (centavos / 100m).ToString("C", PtBr);
+    public static string Reais(long centavos) => (centavos / 100m).ToString("C", PtBr);
 
     /// <summary>"Grátis", "Tem opção grátis", "R$ 25,00" ou "a partir de R$ 25,00".</summary>
     public static string APartirDe(int? menorCentavos, bool variosPrecos)

@@ -1,0 +1,59 @@
+@* A chamada para o Mapa entre "Ao vivo agora" e "Hoje" (pedido do Henrich, 26/10): um banner com um CTA só, levando
+   a /mapa. A ilustração é um mapa de ruas desenhado em SVG com as cores por token (sem hex aqui — muda sozinha no claro
+   e no escuro): pinos Off White e um coral, que é o "ao vivo" (a regra da marca: coral = agora). *@
+<section class="um-mapa-cta" aria-labelledby="mapa-cta-titulo" data-um-motion="reveal">
+    <div class="um-mapa-cta-texto">
+        <span class="um-eyebrow">Mapa ao vivo</span>
+        <h2 id="mapa-cta-titulo">Veja no mapa o que rola perto de você</h2>
+        <p>@Resumo</p>
+        <a href="/mapa" class="um-btn um-mapa-cta-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z" /><path d="M9 4v14M15 6v14" />
+            </svg>
+            Abrir o mapa
+        </a>
+    </div>
+
+    @* O desenho também leva ao mapa (alvo grande no celular), mas fora da ordem do Tab: o link de verdade é o botão. *@
+    <a href="/mapa" class="um-mapa-cta-arte" tabindex="-1" aria-hidden="true">
+        <svg viewBox="0 0 400 220" preserveAspectRatio="xMidYMid slice" focusable="false">
+            <path class="mc-parque" d="M262 24c34-12 78 2 88 34s-22 54-60 49-56-17-51-44 7-29 23-39z" />
+            <path class="mc-parque" d="M34 150c22-17 66-11 77 11s-16 44-50 42-44-36-27-53z" />
+            <path class="mc-rio" d="M-20 122C58 100 118 166 202 134S334 88 420 120" />
+            <g class="mc-rua">
+                <path d="M0 22 400 2" /><path d="M0 92 400 70" /><path d="M0 182 400 160" /><path d="M0 212 400 196" />
+                <path d="M54 -10 82 230" /><path d="M110 -10 132 230" /><path d="M236 -10 214 230" /><path d="M352 -10 336 230" />
+            </g>
+            <g class="mc-avenida">
+                <path d="M0 58 400 36" /><path d="M160 -10 194 230" /><path d="M304 -10 258 230" />
+            </g>
+            <g class="mc-pino" transform="translate(122 90)"><path d="M0 0C-4-6-12-14-12-22a12 12 0 1 1 24 0c0 8-8 16-12 22z" /><circle cx="0" cy="-22" r="5" /></g>
+            <g class="mc-pino" transform="translate(304 86)"><path d="M0 0C-4-6-12-14-12-22a12 12 0 1 1 24 0c0 8-8 16-12 22z" /><circle cx="0" cy="-22" r="5" /></g>
+            <g class="mc-pino" transform="translate(176 168)"><path d="M0 0C-4-6-12-14-12-22a12 12 0 1 1 24 0c0 8-8 16-12 22z" /><circle cx="0" cy="-22" r="5" /></g>
+            <g class="mc-pino" transform="translate(338 156)"><path d="M0 0C-4-6-12-14-12-22a12 12 0 1 1 24 0c0 8-8 16-12 22z" /><circle cx="0" cy="-22" r="5" /></g>
+            <g class="mc-pino is-aovivo" transform="translate(226 108)">
+                <circle class="mc-onda" cx="0" cy="-22" r="14" />
+                <path d="M0 0C-4-6-12-14-12-22a12 12 0 1 1 24 0c0 8-8 16-12 22z" /><circle cx="0" cy="-22" r="5" />
+            </g>
+            <g class="mc-voce" transform="translate(92 128)"><circle r="9" /><circle r="4" /></g>
+        </svg>
+    </a>
+</section>
+
+@code {
+    /// <summary>Quantos eventos estão acontecendo agora (o trilho "Ao vivo agora").</summary>
+    [Parameter] public int AoVivo { get; set; }
+
+    /// <summary>Quantos ainda começam hoje (o trilho "Hoje").</summary>
+    [Parameter] public int Hoje { get; set; }
+
+    private string Resumo => (AoVivo, Hoje) switch
+    {
+        (0, 0) => "Os eventos dos próximos dias, cada um no seu ponto da cidade — e o caminho até a porta.",
+        (0, _) => $"{Eventos(Hoje)} ainda hoje, cada um no seu ponto da cidade — e o caminho até a porta.",
+        (_, 0) => $"{Eventos(AoVivo)} acontecendo agora, cada um no seu ponto da cidade — e o caminho até a porta.",
+        _ => $"{Eventos(AoVivo)} acontecendo agora e {Hoje} ainda hoje, cada um no seu ponto da cidade.",
+    };
+
+    private static string Eventos(int n) => n == 1 ? "1 evento" : $"{n} eventos";
+}

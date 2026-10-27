@@ -97,6 +97,12 @@
     campo.dispatchEvent(new Event('change', { bubbles: true }));
   }
 
+  // A área que o site aceita: Curitiba e região, com um respiro (a régua do servidor é AreaDoOrganizador.Validar,
+  // -26,2/-49,9 a -24,9/-48,8). O mapa não sai dela — fora não há tile, o proxy só serve a região — e um GPS ou uma
+  // coordenada digitada de fora não move o alfinete para um quadro cinza.
+  var AREA = [[-26.3, -50.0], [-24.8, -48.7]];
+  function naArea(p) { return p.lat >= AREA[0][0] && p.lat <= AREA[1][0] && p.lng >= AREA[0][1] && p.lng <= AREA[1][1]; }
+
   function liga(el, L) {
     if (el.__mapa) return;
     var inicio = ponto(el.dataset.mapaPonto);
@@ -117,6 +123,7 @@
       zoomControl: anda, attributionControl: true, scrollWheelZoom: false, dragging: anda, touchZoom: anda,
       doubleClickZoom: anda, boxZoom: false, keyboard: anda, zoomSnap: 1, minZoom: 12, maxZoom: 19,
       zoomAnimation: !reduz, fadeAnimation: !reduz, markerZoomAnimation: !reduz,
+      maxBounds: AREA, maxBoundsViscosity: 1.0,
     }).setView([centro.lat, centro.lng], parseInt(el.dataset.mapaZoom || '17', 10));
     mapa.attributionControl.setPrefix(false);
     L.tileLayer(TILES, {
@@ -190,6 +197,8 @@
         navigator.geolocation.getCurrentPosition(function (pos) {
           gps.removeAttribute('aria-busy');
           var p = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+          // Longe de Curitiba (viagem, VPN): o mesmo aviso de "sem localização" — marque no mapa.
+          if (!naArea(p)) { gps.dispatchEvent(new CustomEvent('mapa:semgps', { bubbles: true })); return; }
           poe(p, true);
           mapa.setView([p.lat, p.lng], Math.max(mapa.getZoom(), 17));
         }, function () {
@@ -202,7 +211,7 @@
       // círculo, o campo é reescrito com a borda (e avisa de novo, para o Blazor ler o ponto que vale).
       if (campo) campo.addEventListener('change', function () {
         var p = ponto(campo.value);
-        if (!p) return;
+        if (!p || !naArea(p)) return; // fora da área: o alfinete fica; o salvar avisa "marque um ponto em Curitiba"
         var dentro = preso(p);
         if (alfinete) alfinete.setLatLng([dentro.lat, dentro.lng]); else cria(dentro);
         mede(dentro);

@@ -41,7 +41,13 @@ public static class Boot
                 if (semear)
                 {
                     var semeadura = escopo.ServiceProvider.GetRequiredService<Semeadura>();
-                    await semeadura.SemearAsync(app.Configuration[DadosDaDemo.ChaveDaSenha]);
+                    // O admin tem senha própria; só no Development (a máquina de quem desenvolve) cai na da demo.
+                    var senhaDaDemo = app.Configuration[DadosDaDemo.ChaveDaSenha];
+                    var senhaDoAdmin = app.Configuration[DadosDaDemo.ChaveDaSenhaDoAdmin] is { Length: > 0 } s ? s : (dev ? senhaDaDemo : null);
+                    if (!dev && senhaDoAdmin is null)
+                        app.Logger.LogWarning("Sem {Chave}: a conta admin@umura.dev nasce com senha aleatória (ninguém entra nela).",
+                            DadosDaDemo.ChaveDaSenhaDoAdmin);
+                    await semeadura.SemearAsync(senhaDaDemo, senhaDoAdmin);
                     if (rolar) await semeadura.AtualizarDatasAsync();
                 }
                 return;

@@ -14,9 +14,13 @@ public static class Endpoints
         // Sair é POST com antiforgery (link de GET para sair deixaria qualquer site deslogar a pessoa).
         app.MapPost("/sair", async (HttpContext http) =>
         {
+            // Sem sessão (já saiu em outra aba, conta apagada): sair não muda nada, então não precisa de token — vai para a home.
+            if (http.User.Identity?.IsAuthenticated != true) return Results.LocalRedirect("/");
             // O UseAntiforgery só CONFERE e anota o resultado na feature; quem recusa é o binding de formulário — e este
-            // handler não lê formulário. Então a recusa é aqui: sem feature (middleware não rodou) ou token inválido = 400.
-            if (http.Features.Get<IAntiforgeryValidationFeature>() is not { IsValid: true }) return Results.BadRequest();
+            // handler não lê formulário. Então a recusa é aqui: sem feature (middleware não rodou) ou token inválido = não sai
+            // (pode ser outro site tentando deslogar a pessoa). Mas sem tela 400 em branco: vai para Minha conta, onde o botão
+            // Sair já vem com token novo.
+            if (http.Features.Get<IAntiforgeryValidationFeature>() is not { IsValid: true }) return Results.LocalRedirect("/minha-conta?sair=refazer");
             await http.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
             return Results.LocalRedirect("/");
         })
@@ -39,10 +43,24 @@ public static class Endpoints
 
         // Os tiles do mapa pelo próprio site (proxy com cache do MyPods). PÚBLICO: o mapa é a vitrine do visitante.
         app.MapGet("/api/mapa/tiles/{z:int}/{x:int}/{y:int}.png", async (int z, int x, int y, HttpContext http, TilesDoMapa tiles,
-            ILogger<TilesDoMapa> log) =>
+            LimiteDeBuscasDeTiles limite, ILogger<TilesDoMapa> log) =>
         {
             try
             {
+                // Fora de Curitiba e região (ou impossível): nem cobra vaga.
+                if (!TilesDoMapa.Valido(z, x, y)) return Results.NotFound();
+                // Tile que ainda não está no cache vai ao OSM: esse tem limite próprio por IP e do site (raspagem de tiles nunca
+                // vistos esbarra aqui; quem só anda pelo mapa já visto não). Sem vaga, a cópia velha (se houver) em vez do cinza.
+                if (!tiles.EmCache(z, x, y) && !limite.Permitir(http))
+                {
+                    if (await tiles.CopiaGuardadaAsync(z, x, y) is { } velha)
+                    {
+                        http.Response.Headers.CacheControl = "private, max-age=60";
+                        return Results.File(velha, "image/png");
+                    }
+                    http.Response.Headers.RetryAfter = "60";
+                    return Results.StatusCode(StatusCodes.Status429TooManyRequests);
+                }
                 var png = await tiles.ObterAsync(z, x, y, http.RequestAborted);
                 if (png is null) return Results.NotFound();
                 // PRIVADO: a URL diz que região alguém olhou, e nenhum cache no caminho guarda isso para outro.

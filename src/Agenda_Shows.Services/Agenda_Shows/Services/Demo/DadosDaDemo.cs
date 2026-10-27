@@ -20,6 +20,12 @@ public static class DadosDaDemo
     /// </summary>
     public const string ChaveDaSenha = "Demo:Senha";
 
+    /// <summary>
+    /// A senha SÓ do admin. A senha da demo é feita para ser compartilhada (avaliadores, a turma); se ela abrisse o admin,
+    /// qualquer um mudaria papéis e veria o e-mail de todos. Em Development, sem esta chave, o admin usa a da demo.
+    /// </summary>
+    public const string ChaveDaSenhaDoAdmin = "Demo:SenhaAdmin";
+
     public sealed record Conta(string Email, string Nome, Papel Papel, string? NomeDoOrganizador = null);
 
     public static readonly Conta[] Contas =

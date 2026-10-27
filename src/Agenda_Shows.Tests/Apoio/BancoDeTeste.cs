@@ -54,13 +54,13 @@ public sealed class BancoDeTeste : IDisposable
     public Pedidos Pedidos() => new(Fabrica, Relogio, NullLogger<Pedidos>.Instance);
     public Contas Contas() => new(Fabrica, Hasher, Relogio);
     public AreaDoOrganizador Organizador() => new(Fabrica, Relogio);
-    public AreaDoAdmin Admin() => new(Fabrica, Relogio);
+    public AreaDoAdmin Admin() => new(Fabrica, Relogio, Semeadura());
     public Favoritos Favoritos() => new(Fabrica, Relogio);
 
     /// <summary>Semeia a demonstração com uma senha de teste (gerada aqui, nunca a dos user-secrets).</summary>
     public async Task<BancoDeTeste> ComDemoAsync()
     {
-        await Semeadura().SemearAsync(SenhaDeTeste);
+        await Semeadura().SemearAsync(SenhaDeTeste, SenhaDeTeste);
         return this;
     }
 

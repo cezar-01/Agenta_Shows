@@ -77,6 +77,9 @@
             <Trilho Titulo="Ao vivo agora" Sub="Acontecendo neste momento em Curitiba" VerTudo="/eventos?quando=aovivo"
                     Eventos="v.AoVivo" Agora="agora" />
 
+            @* O CTA do mapa entre "Ao vivo" e "Hoje" (pedido do Henrich): quem viu o que rola agora já quer ver onde. *@
+            <ChamadaDoMapa AoVivo="v.AoVivo.Count" Hoje="v.Hoje.Count" />
+
             <Trilho Titulo="Hoje" Sub="Ainda dá tempo de ir" VerTudo="/eventos?quando=hoje" Eventos="v.Hoje" Agora="agora" />
 
             @if (v.Destaques.Count > 0)
